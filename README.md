@@ -66,9 +66,9 @@ UCLASH_DOWNLOAD_URL=https://your.mirror/v0.1.0/uclash-linux-amd64 sh install.sh
 npm i -g uclash-cli   # 安装后命令名为 uclash；下载与包版本一致的二进制并校验 SHA-256
 ```
 
+> 包地址：<https://www.npmjs.com/package/uclash-cli>（自动同步到 npmmirror 淘宝源，国内 CDN 直连）。
 > npm 上的 `uclash` 名为他人抢注的空包（无任何版本），因此包名为 `uclash-cli`，
-> 安装后的命令仍是 `uclash`。包会同步到 npmmirror（淘宝源），国内 CDN 直连；
-> 也可用 `UCLASH_GH_MIRROR` 指定镜像。
+> 安装后的命令仍是 `uclash`。也可用 `UCLASH_GH_MIRROR` 指定镜像。
 
 ### 方式三：源码构建
 
@@ -204,6 +204,14 @@ git tag v0.1.0 && git push origin v0.1.0   # 推送 tag，Actions 自动发布 R
 # scripts/release.sh v0.1.0 --publish        （重建并发布）
 # scripts/release.sh v0.1.0 --no-build --publish （发布 dist/ 中的现有文件）
 scripts/wsl-run.sh                  # 仅在 Windows 开发时：拷入 WSL 跑集成测试
+```
+
+npm 包发布（版本号需与 GitHub Release 一致，先更新 `npm/install.js` 里的 SHA-256 表）：
+
+```sh
+cd npm
+npm version 0.1.1 --no-git-tag-version
+npm publish --access public
 ```
 
 集成测试 `scripts/wsl-test.sh` 完全离线运行（本地 HTTP 订阅 + 本地内核/面板），
