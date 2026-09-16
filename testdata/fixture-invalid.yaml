@@ -1,0 +1,23 @@
+# Test fixture: passes uclash's structural validation but is rejected by
+# mihomo itself (invalid REALITY public key), used to test reload rollback.
+proxies:
+  - name: bad-reality
+    type: vless
+    server: 127.0.0.1
+    port: 1
+    uuid: 11111111-2222-3333-4444-555555555555
+    tls: true
+    servername: example.com
+    reality-opts:
+      public-key: "NOT-A-VALID-KEY"
+      short-id: ab12
+
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies:
+      - bad-reality
+      - DIRECT
+
+rules:
+  - MATCH,PROXY

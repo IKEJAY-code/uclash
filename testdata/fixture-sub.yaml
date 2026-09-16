@@ -1,0 +1,33 @@
+# Test fixture: a minimal but valid Clash/Mihomo subscription.
+# Used by the WSL integration test; the proxies point nowhere real.
+proxies:
+  - name: dummy-ss
+    type: ss
+    server: 127.0.0.1
+    port: 1
+    cipher: aes-128-gcm
+    password: "test-password"
+  - name: dummy-http
+    type: http
+    server: 127.0.0.1
+    port: 1
+
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies:
+      - dummy-ss
+      - dummy-http
+      - DIRECT
+  - name: AUTO
+    type: url-test
+    url: http://127.0.0.1:1/generate_204
+    interval: 3600
+    proxies:
+      - dummy-ss
+      - dummy-http
+
+rules:
+  - DOMAIN-SUFFIX,example.com,PROXY
+  - GEOIP,LAN,DIRECT
+  - MATCH,PROXY

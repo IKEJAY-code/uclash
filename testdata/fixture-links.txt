@@ -1,0 +1,5 @@
+vmess://{"v":"2","ps":"B64-Vmess","add":"127.0.0.1","port":"1","id":"11111111-2222-3333-4444-555555555555","aid":"0","scy":"auto","net":"ws","host":"example.com","path":"/ws","tls":"tls","sni":"example.com"}
+vless://11111111-2222-3333-4444-555555555555@127.0.0.1:1?encryption=none&security=reality&sni=example.com&fp=chrome&pbk=XVc4pABG4BvBsPurNF5-DgPDJ0WQ8wI2ep_FaW6Nm5U&sid=ab12&type=tcp#B64-Vless-Reality
+trojan://secret@127.0.0.1:1?security=tls&sni=example.com#B64-Trojan
+ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@127.0.0.1:1#B64-SS
+hysteria2://pass@127.0.0.1:1?sni=example.com#B64-Hy2
