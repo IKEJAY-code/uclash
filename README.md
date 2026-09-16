@@ -47,9 +47,13 @@ curl -fsSL https://raw.githubusercontent.com/IKEJAY-code/uclash/main/scripts/ins
 curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/IKEJAY-code/uclash/main/scripts/install.sh | sh
 ```
 
-装到 `~/.local/bin/uclash`。**二进制下载本身也会自动回退**：GitHub 直连失败时
-依次尝试 `gh-proxy.com`、`ghfast.top`、`ghproxy.net`；可用 `UCLASH_GH_MIRROR`
-指定自有镜像（空格分隔多个前缀）。
+装到 `~/.local/bin/uclash`。二进制下载行为：
+
+- 每次尝试都会打印完整 URL（含进度条）；直连 GitHub 若持续慢于 **100 KB/s 十秒**会自动中断并切换镜像
+- `UCLASH_GH_MIRROR=<前缀>`（空格分隔多个）**优先**走镜像；否则先直连，再按
+  `gh-proxy.com` → `ghfast.top` → `ghproxy.net` 回退
+- 下载完成后用 Release 的 `SHA256SUMS` 自动校验；也可 `UCLASH_SHA256=<hex>` 显式指定，
+  或 `UCLASH_LOCAL_FILE=...` 完全离线安装
 
 完全离线或走内网镜像时：
 
@@ -170,8 +174,8 @@ uclash node ls && uclash node use <名字>
 转换时会跳过并继续，只要求至少一个节点可用。
 
 **GitHub 下载失败/太慢？**
-`install.sh` 会自动按内置镜像列表重试；仍失败时用
-`UCLASH_GH_MIRROR=https://gh-proxy.com sh install.sh` 指定镜像，
+`install.sh` 会自动按内置镜像列表重试，且直连慢于 100 KB/s 十秒就会中断切换；
+想强制优先走镜像用 `UCLASH_GH_MIRROR=https://gh-proxy.com sh install.sh`，
 或浏览器下载二进制后用 `UCLASH_LOCAL_FILE=... sh install.sh`。
 `uclash init` 下载内核/面板同理：`uclash init --mirror https://gh-proxy.com`。
 
