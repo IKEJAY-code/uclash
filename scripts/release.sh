@@ -28,6 +28,9 @@ for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
   echo "built dist/uclash-${target%/*}-${target#*/}"
 done
 
+( cd dist && rm -f SHA256SUMS && sha256sum uclash-* > SHA256SUMS )
+echo "wrote dist/SHA256SUMS"
+
 if [ "$PUBLISH" != "true" ]; then
   echo
   echo "next: create a tag and push, then re-run with --publish"
@@ -52,7 +55,7 @@ if [ -z "$id" ]; then
 fi
 echo "release id: $id"
 
-for f in dist/uclash-*; do
+for f in dist/uclash-* dist/SHA256SUMS; do
   echo "uploading $f ..."
   curl -fsS -X POST "$API/$id/attach_files?access_token=$GITEE_TOKEN" -F "file=@$f" >/dev/null
 done
