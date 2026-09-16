@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"os"
 	"path"
 	"runtime"
 	"strings"
@@ -73,7 +74,16 @@ func FetchUI(ctx context.Context, opts download.Options, destDir string) error {
 		return err
 	}
 	if !download.Exists(path.Join(tmp, "index.html")) {
-		return fmt.Errorf("download UI: index.html missing in archive")
+		entries, _ := os.ReadDir(tmp)
+		names := make([]string, 0, 5)
+		for i, e := range entries {
+			if i >= 5 {
+				names = append(names, "...")
+				break
+			}
+			names = append(names, e.Name())
+		}
+		return fmt.Errorf("download UI: index.html missing in archive (top-level entries: %s)", strings.Join(names, ", "))
 	}
 	if err := removeAll(destDir); err != nil {
 		return err

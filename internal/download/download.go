@@ -138,21 +138,29 @@ func ExtractZip(data []byte, destDir string) error {
 	return nil
 }
 
+// commonPrefix finds the single top-level directory shared by all entries
+// (as produced by GitHub "archive" zips), so it can be stripped on extraction.
+// Bare top-level directory entries (e.g. "repo-branch/") are ignored: GitHub
+// archives contain them, and treating them as "no common prefix" used to leave
+// every file nested one level too deep.
 func commonPrefix(zr *zip.Reader) string {
 	prefix := ""
-	first := true
 	for _, f := range zr.File {
-		if f.Name == "" {
+		name := strings.Trim(f.Name, "/")
+		if name == "" {
 			continue
 		}
-		parts := strings.SplitN(strings.Trim(f.Name, "/"), "/", 2)
-		if len(parts) < 2 {
+		if !strings.Contains(name, "/") {
+			if f.FileInfo().IsDir() {
+				if prefix == "" {
+					prefix = name + "/"
+				}
+				continue
+			}
 			return ""
 		}
-		if first {
-			prefix = parts[0] + "/"
-			first = false
-			continue
+		if prefix == "" {
+			prefix = strings.SplitN(name, "/", 2)[0] + "/"
 		}
 		if !strings.HasPrefix(f.Name, prefix) {
 			return ""
