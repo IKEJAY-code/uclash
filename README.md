@@ -218,6 +218,11 @@ npm version 0.1.1 --no-git-tag-version
 npm publish --access public
 ```
 
+> 若发布后注册表没有立刻出现新版本、且再次发布提示
+> `Cannot publish over previously staged version`，说明这次发布被 npm 放进了
+> staged 状态：用 npm 11+ 的 `npm stage list uclash-cli`（拿 stage id）与
+> `npm stage approve <id>`，或在 npm 网页端批准，稍等片刻即会生效。
+
 集成测试 `scripts/wsl-test.sh` 完全离线运行（本地 HTTP 订阅 + 本地内核/面板），
 覆盖 69 项断言：初始化、YAML 订阅合并、**base64 订阅转换**（vmess/vless reality/trojan/ss/hysteria2）、
 启动/API/面板、模式与端口热切换、`node ls/use/test`、env 输出、profile 导入、
