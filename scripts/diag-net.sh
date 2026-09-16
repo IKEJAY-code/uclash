@@ -68,6 +68,17 @@ EOF
 done
 
 echo
+echo "== outbound high-port egress test (portquiz.net listens on every port) =="
+echo "   same IP, different ports: tells 'port filtered' apart from 'host unreachable'"
+for p in 443 20011 40001; do
+    if timeout 5 bash -c "cat < /dev/null > /dev/tcp/portquiz.net/$p" 2>/dev/null; then
+        printf '  portquiz.net:%-6s open\n' "$p"
+    else
+        printf '  portquiz.net:%-6s BLOCKED (or portquiz itself unreachable)\n' "$p"
+    fi
+done
+
+echo
 echo "interpretation:"
 echo "  * tcp BLOCKED for one profile but reachable for another -> that endpoint/port is"
 echo "    filtered by this network (ask the network admin, or use a provider/port that works)"
