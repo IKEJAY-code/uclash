@@ -161,6 +161,10 @@ func isNoProfile(err error) bool {
 }
 
 func addSubscription(ctx context.Context, a *app.App, out io.Writer, rawURL, name string) error {
+	rawURL, err := normalizeSubURL(rawURL, out)
+	if err != nil {
+		return err
+	}
 	sub, err := a.FetchSubscription(ctx, rawURL)
 	if err != nil {
 		return err
@@ -218,6 +222,25 @@ func activeNote(reg *state.Registry, name string) string {
 		return " (active)"
 	}
 	return ""
+}
+
+// normalizeSubURL tolerates the shell-escaped URLs people commonly copy
+// (`...\?token\=xx`), and points local files at `uclash profile import`.
+func normalizeSubURL(raw string, out io.Writer) (string, error) {
+	if strings.Contains(raw, "://") && strings.Contains(raw, `\`) {
+		clean := strings.ReplaceAll(raw, `\`, "")
+		if clean != raw {
+			fmt.Fprintln(out, "note: removed backslashes from the URL (shell escaping is not part of a URL)")
+			raw = clean
+		}
+	}
+	if !strings.Contains(raw, "://") {
+		if _, err := os.Stat(raw); err == nil {
+			return "", fmt.Errorf("%q is a local file; import it with:\n  uclash profile import %s", raw, raw)
+		}
+		return "", fmt.Errorf("%q is not a subscription URL (it must start with http:// or https://)", raw)
+	}
+	return raw, nil
 }
 
 func suggestName(raw string) string {

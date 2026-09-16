@@ -58,6 +58,8 @@ api_has()   { api "$1" "$2" "$3" | grep -q "$4"; }
 ui_served() { curl -fsS "http://127.0.0.1:$1/ui/" | grep -qi '<html'; }
 status_a()  { [ "$(A_RUN status --quiet)" = "$1" ]; }
 status_b()  { [ "$(B_RUN status --quiet)" = "$1" ]; }
+profile_list()   { A_RUN sub ls | grep -q "$1"; }
+profile_absent() { ! A_RUN sub ls | grep -q "$1"; }
 free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'; }
 
 section "1. init with local core + local ui"
@@ -88,6 +90,15 @@ check "override: external-controller set"    grep -q '^external-controller:' "$A
 check "override: external-ui set"            grep -q '^external-ui:' "$A/home/config.yaml"
 ncheck "hardened: tun block stripped"        grep -q '^tun:' "$A/home/config.yaml"
 check "hardened: allow-lan false"            grep -q 'allow-lan: false' "$A/home/config.yaml"
+
+section "2b. subscription URL hygiene"
+sub_add_local_hint() { local out; out=$(A_RUN sub add "$FIXTURE" 2>&1); grep -q 'profile import' <<< "$out"; }
+escaped_url="http://127.0.0.1:18080/$(basename "$FIXTURE")\?x\=1"
+check "shell-escaped URL is accepted"        A_RUN sub add "$escaped_url" --name escaped
+check "escaped profile stored"               profile_list escaped
+check "local file gets a profile-import hint" sub_add_local_hint
+ncheck "scheme-less argument is rejected"    A_RUN sub add example.com/sub
+A_RUN sub rm escaped >/dev/null 2>&1
 
 section "3. start / API / dashboard"
 A_RUN start >/dev/null
@@ -131,8 +142,6 @@ if (
 section "7. ui / log / profile import / sub while running"
 ui_has_url()    { A_RUN ui --plain | grep -q "http://127.0.0.1:$A_CTRL/ui/"; }
 log_nonempty()  { [ -n "$(A_RUN log -n 5)" ]; }
-profile_list()  { A_RUN sub ls | grep -q "$1"; }
-profile_absent() { ! A_RUN sub ls | grep -q "$1"; }
 check "ui prints the dashboard URL"          ui_has_url
 check "log has content"                      log_nonempty
 IMPORTED=$(mktemp /tmp/imported.XXXXXX.yaml)
