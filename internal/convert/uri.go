@@ -34,6 +34,8 @@ func ParseURI(link string) (*entry, error) {
 		return parseHysteria(link)
 	case "tuic":
 		return parseTUIC(link)
+	case "anytls":
+		return parseAnyTLS(link)
 	case "socks5", "socks":
 		return parseSocks(link)
 	default:
@@ -372,6 +374,41 @@ func parseTUIC(link string) (*entry, error) {
 		e.set("skip-cert-verify", true)
 	}
 	e.set("alpn", alpnFromQuery(q.Get("alpn")))
+	return e, nil
+}
+
+func parseAnyTLS(link string) (*entry, error) {
+	u, err := url.Parse(link)
+	if err != nil {
+		return nil, fmt.Errorf("anytls: %w", err)
+	}
+	password := username(u)
+	if password == "" {
+		return nil, fmt.Errorf("anytls: missing password")
+	}
+	host := u.Hostname()
+	if host == "" {
+		return nil, fmt.Errorf("anytls: missing server")
+	}
+	// AnyTLS shares the Hysteria2 URI style: the port defaults to 443.
+	port := 443
+	if ps := u.Port(); ps != "" {
+		p, perr := strconv.Atoi(ps)
+		if perr != nil || p <= 0 || p > 65535 {
+			return nil, fmt.Errorf("anytls: bad port %q", ps)
+		}
+		port = p
+	}
+	q := u.Query()
+	e := newEntry(fragmentName(u), "anytls", host, port)
+	e.set("password", password)
+	e.set("sni", q.Get("sni"))
+	e.set("udp", true)
+	if truthy(q.Get("insecure")) {
+		e.set("skip-cert-verify", true)
+	}
+	e.set("alpn", alpnFromQuery(q.Get("alpn")))
+	e.set("client-fingerprint", q.Get("fp"))
 	return e, nil
 }
 

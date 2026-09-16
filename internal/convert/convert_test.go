@@ -221,48 +221,113 @@ func TestSubscriptionFromBase64(t *testing.T) {
 		"trojan://pw@1.2.3.4:443?sni=x.com#B",
 		"ss://" + b64("aes-128-gcm:pw") + "@1.2.3.4:8388#C",
 	}, "\n")
-	out, converted, err := Subscription([]byte(b64(links)))
+	res, err := Subscription([]byte(b64(links)))
 	if err != nil {
 		t.Fatalf("Subscription: %v", err)
 	}
-	if !converted {
+	if !res.Converted {
 		t.Fatal("converted = false")
 	}
-	s := string(out)
+	if res.Stats.Parsed != 3 {
+		t.Errorf("parsed = %d, want 3", res.Stats.Parsed)
+	}
+	s := string(res.YAML)
 	for _, want := range []string{"type: vmess", "type: trojan", "type: ss", "name: A", "name: PROXY", "name: AUTO", "MATCH,PROXY"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("output missing %q", want)
 		}
 	}
-	if err := submerge.Validate(out); err != nil {
+	if err := submerge.Validate(res.YAML); err != nil {
 		t.Errorf("generated YAML rejected by Validate: %v", err)
 	}
 }
 
 func TestSubscriptionFromPlainLinks(t *testing.T) {
-	out, converted, err := Subscription([]byte("trojan://pw@1.2.3.4:443#Plain\n"))
-	if err != nil || !converted {
-		t.Fatalf("plain links: converted=%v err=%v", converted, err)
+	res, err := Subscription([]byte("trojan://pw@1.2.3.4:443#Plain\n"))
+	if err != nil || !res.Converted {
+		t.Fatalf("plain links: res=%+v err=%v", res, err)
 	}
-	if !strings.Contains(string(out), "name: Plain") {
-		t.Errorf("missing node name:\n%s", out)
+	if !strings.Contains(string(res.YAML), "name: Plain") {
+		t.Errorf("missing node name:\n%s", res.YAML)
 	}
 }
 
 func TestSubscriptionRejectsGarbage(t *testing.T) {
-	if _, _, err := Subscription([]byte("hello world\n")); err == nil {
+	if _, err := Subscription([]byte("hello world\n")); err == nil {
 		t.Error("expected error for non-link content")
+	}
+}
+
+func TestSubscriptionReportsSkippedSchemes(t *testing.T) {
+	links := strings.Join([]string{
+		"trojan://pw@1.2.3.4:443#Good",
+		"ssh://user@1.2.3.4:22#Unsupported",
+		"ssh://user@1.2.3.5:22#AlsoUnsupported",
+		"vless://not-a-valid-link",
+	}, "\n")
+	res, err := Subscription([]byte(links))
+	if err != nil {
+		t.Fatalf("Subscription: %v", err)
+	}
+	if res.Stats.Parsed != 1 {
+		t.Errorf("parsed = %d, want 1", res.Stats.Parsed)
+	}
+	if res.Stats.Unsupported["ssh"] != 2 {
+		t.Errorf("unsupported ssh = %d, want 2", res.Stats.Unsupported["ssh"])
+	}
+	if res.Stats.Invalid["vless"] != 1 {
+		t.Errorf("invalid vless = %d, want 1", res.Stats.Invalid["vless"])
+	}
+	summary := res.Stats.Summary()
+	if !strings.Contains(summary, "1 nodes") || !strings.Contains(summary, "2 ssh") || !strings.Contains(summary, "1 vless") {
+		t.Errorf("summary = %q", summary)
+	}
+}
+
+func TestSubscriptionErrorNamesUnsupportedSchemes(t *testing.T) {
+	_, err := Subscription([]byte("ssh://user@1.2.3.4:22#OnlyUnsupported\n"))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "ssh") {
+		t.Errorf("error should name the unsupported scheme: %v", err)
 	}
 }
 
 func TestDuplicateNamesGetSuffix(t *testing.T) {
 	links := "trojan://pw@1.2.3.4:443#Dup\ntrojan://pw@1.2.3.5:443#Dup\n"
-	out, _, err := Subscription([]byte(links))
+	res, err := Subscription([]byte(links))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(out), "name: Dup") || !strings.Contains(string(out), "name: Dup-2") {
-		t.Errorf("dedupe failed:\n%s", out)
+	if !strings.Contains(string(res.YAML), "name: Dup") || !strings.Contains(string(res.YAML), "name: Dup-2") {
+		t.Errorf("dedupe failed:\n%s", res.YAML)
+	}
+}
+
+func TestParseAnyTLS(t *testing.T) {
+	link := "anytls://0fdf77d7-d4ba-455e-9ed9-a98dd6d5489a@1.2.3.4/?sni=real.example.com&insecure=1#AnyTLS%20Node"
+	e := mustParse(t, link)
+	wantFields(t, e, map[string]any{
+		"name":             "AnyTLS Node",
+		"type":             "anytls",
+		"server":           "1.2.3.4",
+		"port":             443,
+		"password":         "0fdf77d7-d4ba-455e-9ed9-a98dd6d5489a",
+		"sni":              "real.example.com",
+		"skip-cert-verify": true,
+		"udp":              true,
+	})
+}
+
+func TestParseAnyTLSCustomPort(t *testing.T) {
+	e := mustParse(t, "anytls://letmein@example.com:8964/?sni=example.com#P")
+	wantFields(t, e, map[string]any{"port": 8964, "password": "letmein", "sni": "example.com"})
+}
+
+func TestParseAnyTLSMissingPassword(t *testing.T) {
+	if _, err := ParseURI("anytls://1.2.3.4:443#nopass"); err == nil {
+		t.Error("expected an error for a missing password")
 	}
 }
 

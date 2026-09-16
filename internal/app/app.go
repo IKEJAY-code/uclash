@@ -243,20 +243,24 @@ func (a *App) SetActive(ctx context.Context, name string) error {
 }
 
 // subscriptionUserAgent is what proxies see when we fetch a subscription.
-// Airports gate node protocols on it (e.g. AnyTLS nodes are only served to
-// clients that report a recent mihomo version), so it must reflect the core
-// we actually run rather than a hardcoded old version.
+// Airports key both protocol support and response format on it:
+//   - clash.meta/<version> -> returns the provider's full Clash YAML (groups,
+//     rules, ...), which is what we prefer;
+//   - mihomo/<version>     -> many providers return a base64 node-link list
+//     instead (we can convert it, but the provider's own groups are lost).
+// It must reflect the core we actually run rather than a hardcoded version.
+// Overridable via `user-agent` in config.yaml.
 func (a *App) subscriptionUserAgent() string {
 	if ua := strings.TrimSpace(a.Cfg.UserAgent); ua != "" {
 		return ua
 	}
 	if v := core.NormalizeVersion(a.Cfg.Core.Version); v != "" {
-		return "mihomo/" + v
+		return "clash.meta/" + v
 	}
 	if v := core.BinaryVersion(a.CorePath()); v != "" {
-		return "mihomo/" + v
+		return "clash.meta/" + v
 	}
-	return "mihomo"
+	return "clash.meta"
 }
 
 func (a *App) DownloadOptions(github bool) download.Options {
@@ -281,6 +285,7 @@ type Subscription struct {
 	Body      []byte
 	URL       string // the URL that actually worked (may carry clash flags)
 	Converted bool   // true when base64/plain node links were converted to YAML
+	Stats     string // human summary of a conversion (nodes, skipped schemes)
 }
 
 // FetchSubscription downloads a subscription and normalizes it into a
@@ -312,8 +317,8 @@ func interpretSubscription(body []byte, src string) (*Subscription, string) {
 	if err := submerge.Validate(body); err == nil {
 		return &Subscription{Body: body, URL: src}, ""
 	} else {
-		if converted, ok, cerr := convert.Subscription(body); ok {
-			return &Subscription{Body: converted, URL: src, Converted: true}, ""
+		if res, cerr := convert.Subscription(body); cerr == nil {
+			return &Subscription{Body: res.YAML, URL: src, Converted: true, Stats: res.Stats.Summary()}, ""
 		} else if cerr != nil {
 			return nil, fmt.Sprintf("%v; node-link conversion failed too: %v", err, cerr)
 		}

@@ -35,7 +35,7 @@ func TestSubscriptionUserAgent(t *testing.T) {
 	a := &App{DataDir: t.TempDir(), Cfg: state.Default()}
 
 	a.Cfg.Core.Version = "v1.19.31"
-	if got, want := a.subscriptionUserAgent(), "mihomo/1.19.31"; got != want {
+	if got, want := a.subscriptionUserAgent(), "clash.meta/1.19.31"; got != want {
 		t.Errorf("core version UA = %q, want %q", got, want)
 	}
 
@@ -44,10 +44,10 @@ func TestSubscriptionUserAgent(t *testing.T) {
 		t.Errorf("configured UA should win: got %q, want %q", got, want)
 	}
 
-	// Without a pinned tag and with no usable core binary, fall back to "mihomo".
+	// Without a pinned tag and with no usable core binary, fall back to "clash.meta".
 	a.Cfg.UserAgent = ""
 	a.Cfg.Core.Version = ""
-	if got, want := a.subscriptionUserAgent(), "mihomo"; got != want {
+	if got, want := a.subscriptionUserAgent(), "clash.meta"; got != want {
 		t.Errorf("fallback UA = %q, want %q", got, want)
 	}
 }

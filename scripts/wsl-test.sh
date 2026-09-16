@@ -134,9 +134,9 @@ PY
 python3 "$A/ua_server.py" "$FIXTURE" "$UA_LOG" 18083 &
 UA_PID=$!
 sleep 1
-ua_matches() { grep -qE '^mihomo/1\.' "$UA_LOG"; }
+ua_matches() { grep -qE '^clash\.meta/1\.' "$UA_LOG"; }
 check "sub add succeeds against the UA logger" A_RUN sub add "http://127.0.0.1:18083/fixture-sub.yaml" --name uacheck
-check "User-Agent is mihomo/<core version>"   ua_matches
+check "User-Agent is clash.meta/<core version>" ua_matches
 A_RUN sub rm uacheck >/dev/null 2>&1
 kill "$UA_PID" 2>/dev/null
 UA_PID=""
@@ -250,6 +250,7 @@ check "converted profile has reality node"   grep -q 'reality-opts:' "$A/home/pr
 check "reality public key preserved"         grep -q 'public-key:' "$A/home/profiles/b64.yaml"
 check "vmess alterId present"                grep -q 'alterId: 0' "$A/home/profiles/b64.yaml"
 check "converted profile has hysteria2 node" grep -q 'type: hysteria2' "$A/home/profiles/b64.yaml"
+check "converted profile has anytls node"    grep -q 'type: anytls' "$A/home/profiles/b64.yaml"
 check "converted profile has groups"         grep -q 'name: AUTO' "$A/home/profiles/b64.yaml"
 check "sub use b64"                          A_RUN sub use b64
 check "core answers after converted reload"  api_has "$A_CTRL" "$A_SECRET" /version version

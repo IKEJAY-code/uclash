@@ -3,3 +3,4 @@ vless://11111111-2222-3333-4444-555555555555@127.0.0.1:1?encryption=none&securit
 trojan://secret@127.0.0.1:1?security=tls&sni=example.com#B64-Trojan
 ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@127.0.0.1:1#B64-SS
 hysteria2://pass@127.0.0.1:1?sni=example.com#B64-Hy2
+anytls://anytls-pass@127.0.0.1:1?sni=example.com&insecure=1#B64-AnyTLS
