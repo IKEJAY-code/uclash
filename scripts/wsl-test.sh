@@ -34,6 +34,7 @@ HTTP_PID=""
 HTTP2_PID=""
 SLEEP_PID=""
 UA_PID=""
+GEO_PID=""
 A_RUN() { UCLASH_HOME="$A/home" UCLASH_CONFIG_DIR="$A/config" "$BIN" "$@"; }
 B_RUN() { UCLASH_HOME="$B/home" UCLASH_CONFIG_DIR="$B/config" "$BIN" "$@"; }
 
@@ -42,6 +43,7 @@ cleanup() {
   [ -n "$HTTP2_PID" ] && kill "$HTTP2_PID" 2>/dev/null
   [ -n "$SLEEP_PID" ] && kill "$SLEEP_PID" 2>/dev/null
   [ -n "$UA_PID" ] && kill "$UA_PID" 2>/dev/null
+  [ -n "$GEO_PID" ] && kill "$GEO_PID" 2>/dev/null
   A_RUN stop --quiet >/dev/null 2>&1
   B_RUN stop --quiet >/dev/null 2>&1
   rm -rf "$A" "$B"
@@ -207,6 +209,21 @@ check "shell uninstall removes it"           A_RUN shell uninstall --rc "$WRC"
 check "rc file is clean afterwards"          test ! -s "$WRC"
 check "ZDOTDIR is respected"                 run_with_zdotdir shell install --shell zsh
 check "wrote into ZDOTDIR"                   test -f "$A/zshcfg/.zshrc"
+
+section "6d. geodata pre-download (geox-url override)"
+GEO_DIR="$HOME/uclash-test/fixtures/geodata"
+python3 -m http.server 18084 --directory "$GEO_DIR" >/dev/null 2>&1 &
+GEO_PID=$!
+sleep 1
+rm -f "$A/home/country.mmdb"
+printf '\ngeox-url:\n  mmdb: http://127.0.0.1:18084/country.mmdb\n' >> "$A/config/config.yaml"
+A_RUN restart >/dev/null
+geodata_ok() { local o; o=$(A_RUN doctor); grep -q 'mmdb present' <<< "$o"; }
+check "mmdb pre-downloaded on restart"       test -f "$A/home/country.mmdb"
+check "core still running"                   status_a running
+check "doctor reports geodata present"       geodata_ok
+kill "$GEO_PID" 2>/dev/null
+GEO_PID=""
 
 section "7. ui / log / profile import / sub while running"
 ui_has_url()    { A_RUN ui --plain | grep -q "http://127.0.0.1:$A_CTRL/ui/"; }

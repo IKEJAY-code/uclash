@@ -178,6 +178,9 @@ func startApp(cmd *cobra.Command, a *app.App, quiet bool) error {
 	if err := a.GenerateConfig(); err != nil {
 		return err
 	}
+	if err := a.EnsureGeodata(ctx); err != nil && !quiet {
+		fmt.Fprintf(out, "warn:   geodata pre-download failed: %v\n", err)
+	}
 	pi, err := a.Manager().Start(ctx)
 	if err != nil {
 		if errors.Is(err, core.ErrAlreadyRunning) {

@@ -173,13 +173,8 @@ func (a *App) GenerateConfig() error {
 		Mode:       a.Cfg.Mode,
 		LogLevel:   a.Cfg.LogLevel,
 	}
-	if a.Cfg.Mirror != "" {
-		ov.GeoxURL = map[string]string{
-			"geoip":   download.MirrorURL(a.Cfg.Mirror, "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat"),
-			"geosite": download.MirrorURL(a.Cfg.Mirror, "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"),
-			"mmdb":    download.MirrorURL(a.Cfg.Mirror, "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/country.mmdb"),
-			"asn":     download.MirrorURL(a.Cfg.Mirror, "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/GeoLite2-ASN.mmdb"),
-		}
+	if a.Cfg.Mirror != "" || len(a.Cfg.GeoxURL) > 0 {
+		ov.GeoxURL = a.GeoxURLs()
 	}
 	out, err := submerge.Merge(raw, ov)
 	if err != nil {
@@ -210,11 +205,12 @@ func (a *App) ApplyReload(ctx context.Context) error {
 	if !ok {
 		return nil
 	}
+	_ = a.EnsureGeodata(ctx) // best effort; mihomo would otherwise fetch it itself
 	if err := client.Reload(ctx, a.RuntimeConfigPath()); err != nil {
 		if backup != nil {
 			_ = download.WriteFileAtomic(a.RuntimeConfigPath(), backup, 0o600)
 		}
-		return fmt.Errorf("the config was rejected by mihomo: %w", err)
+		return geodataHint(fmt.Errorf("the config was rejected by mihomo: %w", err))
 	}
 	return nil
 }

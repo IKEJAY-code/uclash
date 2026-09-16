@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"gitee.com/IKEJAY-code/uclash/internal/app"
 	"gitee.com/IKEJAY-code/uclash/internal/fsx"
 	"gitee.com/IKEJAY-code/uclash/internal/port"
 	"gitee.com/IKEJAY-code/uclash/internal/shellenv"
@@ -103,6 +104,26 @@ func newDoctorCmd() *cobra.Command {
 					add("warn", "profile", "%s last updated %s (auto-update on next start)", p.Name, humanSince(p.UpdatedAt))
 				} else {
 					add("ok", "profile", "%s (%s)", p.Name, p.Source)
+				}
+			}
+
+			if data, err := os.ReadFile(a.RuntimeConfigPath()); err == nil {
+				if needed := app.NeededGeodata(data); len(needed) > 0 {
+					var missing []string
+					for _, key := range needed {
+						file := app.GeodataFile(key)
+						if file == "" {
+							continue
+						}
+						if !fsx.Exists(filepath.Join(a.DataDir, file)) {
+							missing = append(missing, file)
+						}
+					}
+					if len(missing) == 0 {
+						add("ok", "geodata", "%s present", strings.Join(needed, ", "))
+					} else {
+						add("warn", "geodata", "%s missing (pre-downloaded on start; retry if mihomo reports download errors)", strings.Join(missing, ", "))
+					}
 				}
 			}
 

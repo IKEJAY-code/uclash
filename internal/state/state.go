@@ -37,16 +37,19 @@ type Shell struct {
 }
 
 type Config struct {
-	Mode            string `yaml:"mode"`
-	LogLevel        string `yaml:"log-level"`
-	Ports           Ports  `yaml:"ports"`
-	Secret          string `yaml:"secret"`
-	Mirror          string `yaml:"mirror"`
-	UserAgent       string `yaml:"user-agent"`
-	Core            Core   `yaml:"core"`
-	UI              UI     `yaml:"ui"`
-	Shell           Shell  `yaml:"shell"`
-	AutoUpdateHours int    `yaml:"auto-update-hours"`
+	Mode            string            `yaml:"mode"`
+	LogLevel        string            `yaml:"log-level"`
+	Ports           Ports             `yaml:"ports"`
+	Secret          string            `yaml:"secret"`
+	Mirror          string            `yaml:"mirror"`
+	UserAgent       string            `yaml:"user-agent"`
+	Core            Core              `yaml:"core"`
+	UI              UI                `yaml:"ui"`
+	Shell           Shell             `yaml:"shell"`
+	AutoUpdateHours int               `yaml:"auto-update-hours"`
+	// GeoxURL overrides GeoIP/GeoSite download URLs (keys: geoip, geosite,
+	// mmdb, asn). Values containing github.com are still mirror-prefixed.
+	GeoxURL map[string]string `yaml:"geox-url,omitempty"`
 }
 
 func Default() *Config {
