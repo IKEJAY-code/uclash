@@ -3,40 +3,18 @@ name: release
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { goos: linux, goarch: amd64 }
-          - { goos: linux, goarch: arm64 }
-          - { goos: darwin, goarch: amd64 }
-          - { goos: darwin, goarch: arm64 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-      - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: "0"
-        run: |
-          mkdir -p dist
-          go build -trimpath \
-            -ldflags "-s -w \
-              -X gitee.com/IKEJAY-code/uclash/internal/version.Version=${GITHUB_REF_NAME:-dev} \
-              -X gitee.com/IKEJAY-code/uclash/internal/version.Commit=$(git rev-parse --short HEAD) \
-              -X gitee.com/IKEJAY-code/uclash/internal/version.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o "dist/uclash-${GOOS}-${GOARCH}" ./cmd/uclash
       - name: Check for an existing release
         id: check
         env:
@@ -44,11 +22,29 @@ jobs:
         run: |
           if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "release ${GITHUB_REF_NAME} already exists; skipping upload to avoid replacing pinned assets"
+            echo "release ${GITHUB_REF_NAME} already exists; skipping to avoid replacing pinned assets"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Build all platforms and write SHA256SUMS
+        if: steps.check.outputs.exists == 'false'
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            GOOS=${target%/*} GOARCH=${target#*/} go build -trimpath \
+              -ldflags "-s -w \
+                -X gitee.com/IKEJAY-code/uclash/internal/version.Version=${GITHUB_REF_NAME:-dev} \
+                -X gitee.com/IKEJAY-code/uclash/internal/version.Commit=$(git rev-parse --short HEAD) \
+                -X gitee.com/IKEJAY-code/uclash/internal/version.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              -o "dist/uclash-${target%/*}-${target#*/}" ./cmd/uclash
+            echo "built dist/uclash-${target%/*}-${target#*/}"
+          done
+          ( cd dist && sha256sum uclash-* > SHA256SUMS )
+          cat dist/SHA256SUMS
       - uses: softprops/action-gh-release@v2
-        if: steps.check.outputs.exists == 'false' && startsWith(github.ref, 'refs/tags/')
+        if: steps.check.outputs.exists == 'false'
         with:
           files: dist/*
+          generate_release_notes: true

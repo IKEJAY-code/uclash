@@ -30,13 +30,14 @@ const MIRRORS = (process.env.UCLASH_GH_MIRROR ? process.env.UCLASH_GH_MIRROR.spl
   .filter(Boolean)
   .concat(DEFAULT_MIRRORS);
 
-// SHA-256 of the official release binaries, keyed by version and platform.
+// SHA-256 of the official release binaries (built by the release workflow),
+// keyed by version and platform.
 const SHA256 = {
   "v0.1.0": {
-    "linux-amd64": "24601b40784cdfd9128f9442f4ea6e63de2a5e51c1603bddb3254eb55dbbbbdb",
-    "linux-arm64": "58912b29868c27438f5961e687825dba2341be007cb4e8ca5c2136d21aa7e0ff",
-    "darwin-amd64": "3a7c64c03298f5aa5b2027564c8ebb565fdb7b0b42e05992df8ec7922d177eea",
-    "darwin-arm64": "e79183f6af4a2591be6e05bffad7a901a329b64693363d88b55a886679fb41a3",
+    "linux-amd64": "4fd1ac6d567534508a6fa3f13127102793675d601bd20d9faffb94d0da742c01",
+    "linux-arm64": "0f19d9928865eff9c950f64bc674c03aca17a1b7697b172a4cafa1a09bc44f31",
+    "darwin-amd64": "07283de7f8b12446b3bfc782e772ef9f33be87c4f1ac60b2a6391bba6033375e",
+    "darwin-arm64": "aaeb327c2153b7441894a77838d5488e40b1680f22efb4891c36458441825b3b",
   },
 };
 
