@@ -55,6 +55,18 @@ const SHA256 = {
     "darwin-amd64": "0238b3b6488f0d8ea45f63f8e76084e5e4bac73d6c7885da428554b1863abd19",
     "darwin-arm64": "f20e7adbd89def4a1014d241a68a543d35f9b92402e2a1cfb862cf8282b08276",
   },
+  "v0.2.1": {
+    "linux-amd64": "b5d1fd06eebe938c10aa5bb9dcc80a469f712e60e521d6fa597a4446d7e75e0e",
+    "linux-arm64": "599186a51d592f0b5baa60663d97bf4961e908d3f7b440ec85392fc11462207d",
+    "darwin-amd64": "7589952418a17d37195ee798325b5f80053a47f6ca347cef8933cf6044ad7379",
+    "darwin-arm64": "7737f90b9f000a10661ac551a742e17151861c21597cb62233b4a87763714a9f",
+  },
+  "v0.2.2": {
+    "linux-amd64": "da33c31af4ad07ac0d107ae92800c95c310aca1429abc40047cc68a813de9e0b",
+    "linux-arm64": "009daa3a17883d33e8b7914fbe631d4e8b3b5ca5e1a2608af7403f293f2d9a84",
+    "darwin-amd64": "ee6a7ab9235367246ca6a0e105af0e8298b7365a7c530d29a4a67b9dd19c1fbb",
+    "darwin-arm64": "6bcbf5c6f4d6c07c03f217565c455e2e35fdef88e697b8ba4e5ab460a991d333",
+  },
 };
 
 function packageVersion() {
