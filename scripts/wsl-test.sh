@@ -221,8 +221,8 @@ if [ -n "${NPM_DIR:-}" ] && command -v node >/dev/null 2>&1; then
   UCLASH_ASSET_URL="http://127.0.0.1:18082/uclash-$OS-$MACH" \
   UCLASH_VERSION=v0.0.0-test UCLASH_SHA256="$FIXTURE_SHA" \
     node "$NPMTMP/pkg/install.js" >/dev/null
-  check "npm install.js downloaded the binary" test -x "$NPMTMP/pkg/bin/uclash"
-  check "downloaded binary runs"             "$NPMTMP/pkg/bin/uclash" version
+  check "npm install.js downloaded the binary" test -x "$NPMTMP/pkg/bin/uclash-bin"
+  check "downloaded binary runs"             "$NPMTMP/pkg/bin/uclash-bin" version
   UCLASH_ASSET_URL="http://127.0.0.1:18082/uclash-$OS-$MACH" \
   UCLASH_VERSION=v0.0.0-test UCLASH_SHA256="$FIXTURE_SHA" \
     node "$NPMTMP/pkg/install.js" | grep -q 'already present' \
@@ -232,7 +232,7 @@ if [ -n "${NPM_DIR:-}" ] && command -v node >/dev/null 2>&1; then
     UCLASH_VERSION=v0.0.0-test \
     UCLASH_SHA256=0000000000000000000000000000000000000000000000000000000000000000 \
     node "$NPMTMP/pkg/install.js"
-  check "bad checksum removed the download"  test ! -e "$NPMTMP/pkg/bin/uclash"
+  check "bad checksum removed the download"  test ! -e "$NPMTMP/pkg/bin/uclash-bin"
   kill "$HTTP2_PID" 2>/dev/null
   rm -rf "$NPMTMP"
 else

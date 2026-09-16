@@ -140,7 +140,7 @@ function sha256(file) {
 
   const binDir = path.join(__dirname, "bin");
   fs.mkdirSync(binDir, { recursive: true });
-  const dest = path.join(binDir, "uclash");
+  const dest = path.join(binDir, "uclash-bin");
   if (fs.existsSync(dest) && !process.env.UCLASH_FORCE) {
     if (sha256(dest) === expected) {
       console.log(`uclash: ${dest} already present`);

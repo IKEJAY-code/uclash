@@ -63,10 +63,12 @@ UCLASH_DOWNLOAD_URL=https://your.mirror/v0.1.0/uclash-linux-amd64 sh install.sh
 ### 方式二：npm（可选，服务器需要 Node）
 
 ```sh
-npm i -g uclash   # 下载与本包同版本的二进制并校验 SHA-256（支持 UCLASH_GH_MIRROR）
+npm i -g uclash-cli   # 安装后命令名为 uclash；下载与包版本一致的二进制并校验 SHA-256
 ```
 
-发布到 npm 后会自动同步到 npmmirror（淘宝源），国内 CDN 直连。
+> npm 上的 `uclash` 名为他人抢注的空包（无任何版本），因此包名为 `uclash-cli`，
+> 安装后的命令仍是 `uclash`。包会同步到 npmmirror（淘宝源），国内 CDN 直连；
+> 也可用 `UCLASH_GH_MIRROR` 指定镜像。
 
 ### 方式三：源码构建
 

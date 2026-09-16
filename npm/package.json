@@ -1,5 +1,5 @@
 {
-  "name": "uclash",
+  "name": "uclash-cli",
   "version": "0.1.0",
   "description": "Per-user, sudo-free mihomo (Clash.Meta) proxy manager",
   "license": "MIT",
@@ -9,11 +9,25 @@
   },
   "homepage": "https://github.com/IKEJAY-code/uclash",
   "bin": {
-    "uclash": "bin/uclash"
+    "uclash": "shim.js"
+  },
+  "files": [
+    "install.js",
+    "shim.js"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "postinstall": "node install.js"
   },
+  "keywords": [
+    "clash",
+    "mihomo",
+    "clash-meta",
+    "proxy",
+    "per-user"
+  ],
   "os": [
     "linux",
     "darwin"
