@@ -2,28 +2,149 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 
+	"gitee.com/IKEJAY-code/uclash/internal/app"
 	"gitee.com/IKEJAY-code/uclash/internal/shellenv"
 	"gitee.com/IKEJAY-code/uclash/internal/uiurl"
 	"github.com/spf13/cobra"
 )
 
+// newProxyCmd is the single, shell-agnostic entry point for the terminal
+// proxy. The statements must be evaluated by the calling shell, which is why
+// `uclash shell install` offers an optional wrapper that does it for you.
+func newProxyCmd() *cobra.Command {
+	var fish bool
+	cmd := &cobra.Command{
+		Use:   "proxy [on|off|status]",
+		Short: "Enable/disable the proxy for the current shell (any shell)",
+		Long: `Enable or disable the proxy for the current terminal.
+
+  eval "$(uclash proxy on)"          # bash / zsh: start the core (if needed)
+  eval "$(uclash proxy off)"         #   and set/unset http_proxy/... here
+  uclash proxy on --fish | source    # fish
+  uclash proxy status                # is this terminal already using it?
+
+A child process cannot change its parent shell's environment, so the shell
+must evaluate the output once. To make it a single command, install the
+optional wrapper (it defines a uclash() function that does the eval for you):
+
+  uclash shell install               # then: uclash proxy on
+
+Only this terminal is affected; other terminals and other users are not.`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			a, err := newApp()
+			if err != nil {
+				return err
+			}
+			action := "status"
+			if len(args) == 1 {
+				action = strings.ToLower(args[0])
+			}
+			out := cmd.OutOrStdout()
+			errOut := cmd.ErrOrStderr()
+
+			switch action {
+			case "on":
+				// Start the core quietly so `eval "$(uclash proxy on)"` is a
+				// complete "turn it on"; everything noisy goes to stderr.
+				if _, running := a.Running(); !running {
+					if err := startApp(cmd, a, true); err != nil {
+						return err
+					}
+				}
+				printProxyHint(errOut, a, true, fish)
+				if fish {
+					fmt.Fprint(out, shellenv.FishOn(a.Cfg.Ports.Mixed))
+				} else {
+					fmt.Fprint(out, shellenv.ExportOn(a.Cfg.Ports.Mixed))
+				}
+			case "off":
+				printProxyHint(errOut, a, false, fish)
+				if fish {
+					fmt.Fprint(out, shellenv.FishOff(a.Cfg.Ports.Mixed))
+				} else {
+					fmt.Fprint(out, shellenv.ExportOff(a.Cfg.Ports.Mixed))
+				}
+			case "status":
+				printProxyStatus(out, a)
+			default:
+				return fmt.Errorf("expected on|off|status, got %q", args[0])
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&fish, "fish", false, "emit fish-compatible statements")
+	return cmd
+}
+
+// printProxyHint explains how to apply the output, but only when it is meant
+// for a human: if stdout is a pipe (the shell is running `eval "$(...)"` or
+// `--fish | source`) the statements must stay byte-clean.
+func printProxyHint(w io.Writer, a *app.App, on bool, fish bool) {
+	if !uiurl.IsTerminal(os.Stdout) {
+		return
+	}
+	action := "off"
+	if on {
+		action = "on"
+	}
+	if fish {
+		fmt.Fprintf(w, "uclash: to apply this in the current shell:\n  uclash proxy %s --fish | source\n", action)
+		return
+	}
+	fmt.Fprintf(w, "uclash: to apply this in the current shell:\n  eval \"$(uclash proxy %s)\"\n", action)
+	if rc := a.Cfg.Shell.RCFile; rc != "" && shellenv.Installed(rc) {
+		fmt.Fprintf(w, "        (the uclash wrapper is installed in %s, so `uclash proxy %s` also works directly)\n", rc, action)
+	} else {
+		fmt.Fprintln(w, "  or install the shell wrapper once:  uclash shell install")
+	}
+}
+
+func printProxyStatus(out io.Writer, a *app.App) {
+	port := a.Cfg.Ports.Mixed
+	if pi, running := a.Running(); running {
+		fmt.Fprintf(out, "core:   running (pid %d, mixed 127.0.0.1:%d)\n", pi.PID, port)
+	} else {
+		fmt.Fprintf(out, "core:   stopped (configured mixed port: %d)\n", port)
+	}
+	want := shellenv.ProxyURL(port)
+	current := os.Getenv("http_proxy")
+	if current == "" {
+		current = os.Getenv("HTTP_PROXY")
+	}
+	switch {
+	case current == "":
+		fmt.Fprintln(out, "shell:  proxy OFF in this terminal")
+	case current == want:
+		fmt.Fprintf(out, "shell:  proxy ON in this terminal (http_proxy=%s)\n", current)
+	default:
+		fmt.Fprintf(out, "shell:  http_proxy=%s (not this uclash instance; ours would be %s)\n", current, want)
+	}
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, `enable:  eval "$(uclash proxy on)"        # bash / zsh`)
+	fmt.Fprintln(out, `disable: eval "$(uclash proxy off)"`)
+	fmt.Fprintln(out, "fish:    uclash proxy on --fish | source")
+}
+
+// newEnvCmd is the low-level, script-friendly printer kept for compatibility.
 func newEnvCmd() *cobra.Command {
-	var sh bool
+	var (
+		sh   bool
+		fish bool
+	)
 	cmd := &cobra.Command{
 		Use:   "env on|off",
-		Short: "Print shell statements to enable/disable the terminal proxy",
-		Long: `Print shell statements for the current terminal.
+		Short: "Print shell statements for the terminal proxy (script-friendly)",
+		Long: `Print the raw shell statements (same as ` + "`uclash proxy`" + `, without hints).
 
   eval "$(uclash env on)"    # export http_proxy/https_proxy/... for this shell
-  eval "$(uclash env off)"   # remove them again
-
-These only affect the shell you run them in; other users (and your other
-terminals) are untouched.`,
+  eval "$(uclash env off)"   # remove them again`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a, err := newApp()
@@ -36,17 +157,23 @@ terminals) are untouched.`,
 				if _, running := a.Running(); !running {
 					fmt.Fprintln(cmd.ErrOrStderr(), "uclash: core is not running; env points at a dead port (start with `uclash start`)")
 				}
-				text := shellenv.ExportOn(a.Cfg.Ports.Mixed)
-				if sh {
-					text = shify(text, true)
+				switch {
+				case fish:
+					fmt.Fprint(out, shellenv.FishOn(a.Cfg.Ports.Mixed))
+				case sh:
+					fmt.Fprint(out, shify(shellenv.ExportOn(a.Cfg.Ports.Mixed), true))
+				default:
+					fmt.Fprint(out, shellenv.ExportOn(a.Cfg.Ports.Mixed))
 				}
-				fmt.Fprint(out, text)
 			case "off":
-				text := shellenv.ExportOff(a.Cfg.Ports.Mixed)
-				if sh {
-					text = shify(text, false)
+				switch {
+				case fish:
+					fmt.Fprint(out, shellenv.FishOff(a.Cfg.Ports.Mixed))
+				case sh:
+					fmt.Fprint(out, shify(shellenv.ExportOff(a.Cfg.Ports.Mixed), false))
+				default:
+					fmt.Fprint(out, shellenv.ExportOff(a.Cfg.Ports.Mixed))
 				}
-				fmt.Fprint(out, text)
 			default:
 				return fmt.Errorf("expected 'on' or 'off', got %q", args[0])
 			}
@@ -54,6 +181,7 @@ terminals) are untouched.`,
 		},
 	}
 	cmd.Flags().BoolVar(&sh, "sh", false, "emit POSIX sh compatible statements (no `export` keyword on assignment)")
+	cmd.Flags().BoolVar(&fish, "fish", false, "emit fish-compatible statements")
 	return cmd
 }
 
@@ -143,14 +271,12 @@ func openBrowser(target string) error {
 			lastErr = err
 			continue
 		}
-		cmd := exec.Command(c[0], c[1:]...)
-		cmd.Stdout = nil
-		cmd.Stderr = nil
-		if err := cmd.Start(); err != nil {
+		goCmd := exec.Command(c[0], c[1:]...)
+		if err := goCmd.Start(); err != nil {
 			lastErr = err
 			continue
 		}
-		go func() { _ = cmd.Wait() }()
+		go func() { _ = goCmd.Wait() }()
 		return nil
 	}
 	if lastErr == nil {

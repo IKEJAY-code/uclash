@@ -20,13 +20,14 @@ import (
 
 func newInitCmd() *cobra.Command {
 	var (
-		subURL   string
-		name     string
-		mirror   string
-		corePath string
-		uiSource string
-		force    bool
-		noShell  bool
+		subURL           string
+		name             string
+		mirror           string
+		corePath         string
+		uiSource         string
+		force            bool
+		noShell          bool
+		shellIntegration bool
 	)
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -104,23 +105,29 @@ func newInitCmd() *cobra.Command {
 				return err
 			}
 
-			if !noShell {
-				if rc := shellenv.DetectRC(); rc != "" {
-					changed, err := shellenv.Install(rc)
-					if err != nil {
-						fmt.Fprintf(out, "shell:  could not update %s: %v\n", rc, err)
-					} else {
-						a.Cfg.Shell.Integration = true
-						a.Cfg.Shell.RCFile = rc
-						if changed {
-							fmt.Fprintf(out, "shell:  proxyon/proxyoff helpers added to %s\n", rc)
-						} else {
-							fmt.Fprintf(out, "shell:  helpers already present in %s\n", rc)
-						}
-					}
-				} else {
-					fmt.Fprintln(out, "shell:  could not detect an rc file; skipped (run `uclash shell install` manually)")
+			if shellIntegration && !noShell {
+				shellName := shellenv.DetectShell()
+				if shellName == "" {
+					shellName = "bash"
 				}
+				rc, source := shellenv.ResolveRC(shellName)
+				changed, err := shellenv.Install(rc, shellName)
+				if err != nil {
+					fmt.Fprintf(out, "shell:  could not update %s: %v\n", rc, err)
+				} else {
+					a.Cfg.Shell.Integration = true
+					a.Cfg.Shell.RCFile = rc
+					fmt.Fprintf(out, "shell:  %s wrapper -> %s (%s)\n", shellName, rc, source)
+					if changed {
+						fmt.Fprintln(out, "        installed; open a new shell (or source it) to use `uclash proxy on`")
+					} else {
+						fmt.Fprintln(out, "        already present")
+					}
+				}
+			} else if !noShell {
+				fmt.Fprintln(out, "shell:  rc files left untouched (as of v0.2).")
+				fmt.Fprintln(out, "        - any shell, no setup:  eval \"$(uclash proxy on)\"")
+				fmt.Fprintln(out, "        - one command instead:  uclash shell install   (then: uclash proxy on)")
 			}
 			if err := a.Save(); err != nil {
 				return err
@@ -136,7 +143,11 @@ func newInitCmd() *cobra.Command {
 				fmt.Fprintf(out, "profile: %s\n", reg.Active)
 				fmt.Fprintln(out)
 				fmt.Fprintln(out, "start it with:  uclash start")
-				fmt.Fprintln(out, "terminal proxy: proxyon   (new shells)  |  eval \"$(uclash env on)\"")
+				if a.Cfg.Shell.Integration {
+					fmt.Fprintln(out, "shell proxy:    uclash proxy on      (wrapper installed, new shells)")
+				} else {
+					fmt.Fprintln(out, "shell proxy:    eval \"$(uclash proxy on)\"   (any shell)")
+				}
 			default:
 				fmt.Fprintln(out)
 				fmt.Fprintln(out, "next: add a subscription  ->  uclash sub add <clash-subscription-url>")
@@ -152,7 +163,8 @@ func newInitCmd() *cobra.Command {
 	cmd.Flags().StringVar(&corePath, "core", "", "install the core from a local mihomo binary instead of downloading")
 	cmd.Flags().StringVar(&uiSource, "ui", "", "install the dashboard from a local directory, or 'skip'")
 	cmd.Flags().BoolVar(&force, "force", false, "re-download core and dashboard even if present")
-	cmd.Flags().BoolVar(&noShell, "no-shell", false, "do not modify shell rc files")
+	cmd.Flags().BoolVar(&shellIntegration, "shell-integration", false, "install the uclash shell wrapper (makes `uclash proxy on` a single command)")
+	cmd.Flags().BoolVar(&noShell, "no-shell", false, "do not print or install shell integration")
 	return cmd
 }
 

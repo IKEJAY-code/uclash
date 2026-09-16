@@ -12,74 +12,143 @@ import (
 func newShellCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "shell",
-		Short: "Manage shell integration (proxyon/proxyoff helpers)",
+		Short: "Optional shell integration (makes `uclash proxy on` a single command)",
+		Long: `uclash never edits shell rc files unless you ask it to.
+
+Without any setup, enabling the proxy in the current shell is:
+
+  eval "$(uclash proxy on)"          # bash / zsh
+  uclash proxy on --fish | source    # fish
+
+Installing the wrapper adds one uclash() function to your rc file that
+evaluates ` + "`uclash proxy on|off`" + ` for you, so you can simply run:
+
+  uclash proxy on
+`,
 	}
-	cmd.AddCommand(
-		&cobra.Command{
-			Use:   "status",
-			Short: "Show shell integration status",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				a, err := newApp()
-				if err != nil {
-					return err
+	cmd.AddCommand(newShellInstallCmd(), newShellStatusCmd(), newShellUninstallCmd())
+	return cmd
+}
+
+func newShellInstallCmd() *cobra.Command {
+	var (
+		shellFlag string
+		rcFlag    string
+	)
+	cmd := &cobra.Command{
+		Use:   "install",
+		Short: "Add the uclash() wrapper to your shell rc file",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			a, err := newApp()
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			shell := shellFlag
+			if shell == "" {
+				shell = shellenv.DetectShell()
+			}
+			if shell == "" {
+				shell = "bash"
+				fmt.Fprintln(cmd.ErrOrStderr(), "uclash: could not detect your shell; defaulting to bash (use --shell bash|zsh|fish)")
+			}
+			rc := rcFlag
+			source := "you specified it"
+			if rc == "" {
+				rc, source = shellenv.ResolveRC(shell)
+			}
+			changed, err := shellenv.Install(rc, shell)
+			if err != nil {
+				return err
+			}
+			a.Cfg.Shell.Integration = true
+			a.Cfg.Shell.RCFile = rc
+			if err := a.Save(); err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "shell:  %s\n", shell)
+			fmt.Fprintf(out, "rc:     %s (%s)\n", rc, source)
+			if changed {
+				fmt.Fprintf(out, "installed the uclash wrapper into %s\n", rc)
+			} else {
+				fmt.Fprintf(out, "wrapper already present in %s\n", rc)
+			}
+			if shell == "bash" && rcFlag == "" {
+				if risky := shellenv.BashLoginRisk(); risky != "" {
+					fmt.Fprintf(cmd.ErrOrStderr(), "note: %s does not reference ~/.bashrc, so login shells may miss the wrapper.\n", risky)
+					fmt.Fprintf(cmd.ErrOrStderr(), "      add `source ~/.bashrc` there, or run: uclash shell install --rc %s\n", risky)
 				}
-				out := cmd.OutOrStdout()
-				rc := a.Cfg.Shell.RCFile
-				if rc == "" {
-					rc = shellenv.DetectRC()
-				}
-				fmt.Fprintf(out, "rc file:   %s\n", orDash(rc))
-				if rc != "" {
-					fmt.Fprintf(out, "installed: %v\n", shellenv.Installed(rc))
-				}
-				return nil
-			},
+			}
+			fmt.Fprintf(out, "open a new shell or run: source %s\n", rc)
+			fmt.Fprintln(out, "then use:  uclash proxy on / uclash proxy off")
+			return nil
 		},
-		&cobra.Command{
-			Use:   "install",
-			Short: "Add proxyon/proxyoff helpers to your shell rc file",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				a, err := newApp()
-				if err != nil {
-					return err
+	}
+	cmd.Flags().StringVar(&shellFlag, "shell", "", "shell to target: bash, zsh or fish (default: auto-detect)")
+	cmd.Flags().StringVar(&rcFlag, "rc", "", "rc file to edit (default: bash=~/.bashrc, zsh=${ZDOTDIR:-~}/.zshrc, fish=~/.config/fish/config.fish)")
+	return cmd
+}
+
+func newShellStatusCmd() *cobra.Command {
+	var rcFlag string
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show shell integration status",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			a, err := newApp()
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			detected := shellenv.DetectShell()
+			fmt.Fprintf(out, "detected shell: %s\n", orDash(detected))
+			rc := rcFlag
+			source := "you specified it"
+			if rc == "" {
+				rc = a.Cfg.Shell.RCFile
+				source = "recorded at install time"
+			}
+			if rc == "" {
+				shell := detected
+				if shell == "" {
+					shell = "bash"
 				}
-				out := cmd.OutOrStdout()
-				rc := shellenv.DetectRC()
-				if rc == "" {
-					return fmt.Errorf("could not detect an rc file; add this to your shell config manually:\n\n%s", shellenv.Block())
-				}
-				changed, err := shellenv.Install(rc)
-				if err != nil {
-					return err
-				}
-				a.Cfg.Shell.Integration = true
-				a.Cfg.Shell.RCFile = rc
-				if err := a.Save(); err != nil {
-					return err
-				}
-				if changed {
-					fmt.Fprintf(out, "installed into %s\n", rc)
-				} else {
-					fmt.Fprintf(out, "already present in %s\n", rc)
-				}
-				fmt.Fprintf(out, "open a new shell or run: source %s\n", rc)
-				return nil
-			},
+				rc, source = shellenv.ResolveRC(shell)
+			}
+			fmt.Fprintf(out, "rc file:        %s (%s)\n", orDash(rc), source)
+			if rc != "" {
+				fmt.Fprintf(out, "wrapper:        %v\n", shellenv.Installed(rc))
+			}
+			fmt.Fprintln(out)
+			fmt.Fprintln(out, `without the wrapper:  eval "$(uclash proxy on)"`)
+			fmt.Fprintln(out, "with the wrapper:     uclash proxy on")
+			return nil
 		},
-		&cobra.Command{
-			Use:   "uninstall",
-			Short: "Remove the managed block from your shell rc file",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				a, err := newApp()
-				if err != nil {
-					return err
-				}
-				out := cmd.OutOrStdout()
-				rc := a.Cfg.Shell.RCFile
-				if rc == "" {
-					rc = shellenv.DetectRC()
-				}
-				if rc != "" {
+	}
+	cmd.Flags().StringVar(&rcFlag, "rc", "", "rc file to inspect")
+	return cmd
+}
+
+func newShellUninstallCmd() *cobra.Command {
+	var rcFlag string
+	cmd := &cobra.Command{
+		Use:   "uninstall",
+		Short: "Remove the managed block from your shell rc file",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			a, err := newApp()
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			rc := rcFlag
+			if rc == "" {
+				rc = a.Cfg.Shell.RCFile
+			}
+			if rc == "" {
+				rc = shellenv.DetectRC()
+			}
+			if rc != "" {
+				if _, err := os.Stat(rc); err == nil {
 					changed, err := shellenv.Uninstall(rc)
 					if err != nil {
 						return err
@@ -90,11 +159,14 @@ func newShellCmd() *cobra.Command {
 						fmt.Fprintf(out, "nothing to remove in %s\n", rc)
 					}
 				}
-				a.Cfg.Shell.Integration = false
-				return a.Save()
-			},
+			} else {
+				fmt.Fprintln(out, "no rc file to clean up")
+			}
+			a.Cfg.Shell.Integration = false
+			return a.Save()
 		},
-	)
+	}
+	cmd.Flags().StringVar(&rcFlag, "rc", "", "rc file to clean up")
 	return cmd
 }
 
@@ -123,7 +195,7 @@ func newUninstallCmd() *cobra.Command {
 			}
 			if rc != "" {
 				if changed, err := shellenv.Uninstall(rc); err == nil && changed {
-					fmt.Fprintf(out, "shell: helpers removed from %s\n", rc)
+					fmt.Fprintf(out, "shell: wrapper removed from %s\n", rc)
 				}
 			}
 			if !purge {

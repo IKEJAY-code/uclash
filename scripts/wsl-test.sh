@@ -124,20 +124,48 @@ check "new controller port answers"          api_has "$NEW_CTRL" "$A_SECRET" /ve
 A_CTRL=$NEW_CTRL
 A_MIXED=$NEW_MIXED
 
-section "6. terminal env"
-env_on_has()  { A_RUN env on | grep -q "$1"; }
-env_off_has() { A_RUN env off | grep -q "$1"; }
+section "6. terminal proxy (env / proxy command)"
+env_on_has()  { local o; o=$(A_RUN env on); grep -q "$1" <<< "$o"; }
+env_off_has() { local o; o=$(A_RUN env off); grep -q "$1" <<< "$o"; }
+proxy_on_has()  { local o; o=$(A_RUN proxy on); grep -q "http://127.0.0.1:$A_MIXED" <<< "$o"; }
+proxy_off_has() { local o; o=$(A_RUN proxy off); grep -q 'unset http_proxy' <<< "$o"; }
+proxy_fish_has() { local o; o=$(A_RUN proxy on --fish); grep -q 'set -gx http_proxy' <<< "$o"; }
+proxy_status_has() { local o; o=$(A_RUN proxy status); grep -q "$1" <<< "$o"; }
 check "env on exports our port"              env_on_has "http://127.0.0.1:$A_MIXED"
 check "env off is conditional"               env_off_has "unset http_proxy"
+check "proxy on prints exports"              proxy_on_has
+check "proxy off prints conditional unset"   proxy_off_has
+check "proxy on --fish prints fish syntax"   proxy_fish_has
+check "proxy status reports the core"        proxy_status_has 'core:   running'
+check "proxy status shows the eval hint"     proxy_status_has 'eval "$(uclash proxy on)"'
 if (
-  eval "$(A_RUN env on)"
+  eval "$(A_RUN proxy on)"
   [ "${http_proxy:-}" = "http://127.0.0.1:$A_MIXED" ]
-); then ok "eval env on sets http_proxy"; else bad "eval env on sets http_proxy"; fi
+); then ok "eval proxy on sets http_proxy"; else bad "eval proxy on sets http_proxy"; fi
 if (
-  eval "$(A_RUN env on)"
-  eval "$(A_RUN env off)"
+  eval "$(A_RUN proxy on)"
+  eval "$(A_RUN proxy off)"
   [ -z "${http_proxy:-}" ]
-); then ok "eval env off unsets http_proxy"; else bad "eval env off unsets http_proxy"; fi
+); then ok "eval proxy off unsets http_proxy"; else bad "eval proxy off unsets http_proxy"; fi
+
+section "6b. proxy on starts a stopped core"
+A_RUN stop --quiet >/dev/null
+check "core stopped"                         status_a stopped
+check "proxy on succeeds with core stopped"  A_RUN proxy on
+check "core auto-started"                    status_a running
+
+section "6c. shell wrapper install / status / uninstall"
+WRC="$A/rcfile"
+shell_status_installed() { local o; o=$(A_RUN shell status --rc "$WRC"); grep -qE 'wrapper: +true' <<< "$o"; }
+run_with_zdotdir() { ZDOTDIR="$A/zshcfg" A_RUN "$@"; }
+check "shell install writes the wrapper"     A_RUN shell install --shell zsh --rc "$WRC"
+check "wrapper defines uclash()"             grep -q 'command uclash proxy' "$WRC"
+check "wrapper forwards other subcommands"   grep -q 'command uclash "\$@"' "$WRC"
+check "shell status sees it"                 shell_status_installed
+check "shell uninstall removes it"           A_RUN shell uninstall --rc "$WRC"
+check "rc file is clean afterwards"          test ! -s "$WRC"
+check "ZDOTDIR is respected"                 run_with_zdotdir shell install --shell zsh
+check "wrote into ZDOTDIR"                   test -f "$A/zshcfg/.zshrc"
 
 section "7. ui / log / profile import / sub while running"
 ui_has_url()    { A_RUN ui --plain | grep -q "http://127.0.0.1:$A_CTRL/ui/"; }

@@ -13,7 +13,7 @@
 ~$ curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/IKEJAY-code/uclash/main/scripts/install.sh | sh
 ~$ uclash init
 ~$ uclash sub add "https://your-airport.example/sub?token=..."   # Clash YAML 或 base64 节点链接均可
-~$ uclash start && proxyon
+~$ eval "$(uclash proxy on)"   # 启动内核并让本终端走代理（任何 shell 通用）
 ~$ uclash ui          # 打印带密钥的面板地址，VS Code 终端里可直接 Ctrl+点击打开
 ```
 
@@ -32,8 +32,11 @@
 - **命令行切节点**：`uclash node ls / use / test`，不打开网页也能选节点、测延迟
 - **顺手拿地址**：`uclash ui` 输出 `http://127.0.0.1:<port>/ui/#/setup?hostname=...&port=...&secret=...`，
   VS Code Remote 终端会自动识别 localhost 链接并提供端口转发，Ctrl+点击即开
-- **终端开关**：`proxyon` / `proxyoff`（安装进 rc 的 shell 函数），或 `eval "$(uclash env on)"`，
-  只影响当前 shell，不影响其他终端和其他用户
+- **终端开关**：`uclash proxy on|off|status`——**任何 shell 通用，不写任何 rc 文件**
+  （bash/zsh：`eval "$(uclash proxy on)"`；fish：`uclash proxy on --fish | source`）。
+  想省掉 eval 就装一次包装函数：`uclash shell install`（自动识别 bash/zsh/fish 与
+  `$ZDOTDIR`、支持 `--rc` 指定自定义配置），之后直接 `uclash proxy on`。
+  只影响当前终端，不影响其他终端和其他用户
 
 ## 安装
 
@@ -96,9 +99,8 @@ uclash init
 # 2. 添加订阅（Clash YAML 或 base64 节点链接都行）
 uclash sub add "https://airport.example/api/v1/client/subscribe?token=..."
 
-# 3. 启动 + 在当前 shell 开代理
-uclash start
-proxyon            # 或者： eval "$(uclash env on)"
+# 3. 启动内核 + 在当前 shell 开代理（自动启动内核；任何 shell 可用这条）
+eval "$(uclash proxy on)"
 
 # 4. 打开面板（网页里换策略组 / 换端口 / 切模式），或命令行切节点
 uclash ui
@@ -121,11 +123,12 @@ uclash node ls && uclash node use <名字>
 | `uclash node test [group]` | 并发测速组内所有节点，按延迟排序 |
 | `uclash mode [rule\|global\|direct]` | 查看 / 切换路由模式（运行中热切换） |
 | `uclash port [set mixed\|controller <n>]` | 查看 / 修改端口（controller 变更会重启内核） |
-| `uclash env on\|off [--sh]` | 输出设置/清理终端代理变量的 shell 语句 |
+| `uclash proxy on\|off\|status [--fish]` | 当前终端开关代理（任何 shell）；`uclash proxy status` 查看状态 |
+| `uclash env on\|off [--sh\|--fish]` | 同 proxy 的底层输出（脚本用：无提示、不自动启动内核） |
 | `uclash ui [--open] [--plain]` | 打印（或打开）面板地址 |
 | `uclash log [-n N] [-f]` | 查看/跟踪内核日志 |
 | `uclash core info / core update` | 查看 / 升级 mihomo 内核（支持 `--mirror`） |
-| `uclash shell install / uninstall / status` | 管理 rc 文件里的 `proxyon`/`proxyoff` |
+| `uclash shell install / status / uninstall` | 可选包装函数：让 `uclash proxy on` 单命令生效（支持 `--shell`/`--rc`） |
 | `uclash doctor` | 自检：目录权限、内核、端口、订阅、PATH 等 |
 | `uclash uninstall [--purge --yes]` | 停止并清理 shell 集成；`--purge` 删除数据 |
 
@@ -178,6 +181,26 @@ uclash node ls && uclash node use <名字>
 想强制优先走镜像用 `UCLASH_GH_MIRROR=https://gh-proxy.com sh install.sh`，
 或浏览器下载二进制后用 `UCLASH_LOCAL_FILE=... sh install.sh`。
 `uclash init` 下载内核/面板同理：`uclash init --mirror https://gh-proxy.com`。
+
+**`uclash proxy` 为什么还要 `eval`？**
+子进程无法修改父 shell 的环境变量（Unix 进程模型），所以 `uclash proxy on` 只负责打印语句、
+由你的 shell 执行一次。不想每次敲 eval 就装一次包装函数：`uclash shell install`——它只在
+rc 里加一个 `uclash()` 函数（拦截 `uclash proxy on|off` 代为 eval，其他子命令原样转发），
+之后直接 `uclash proxy on`；`uclash shell uninstall` 可完全移除。
+
+**shell 集成会找错我的配置文件吗？**
+`uclash shell install` 的定位顺序：
+1. 用 `/proc/<ppid>/exe` 认出“当前正在用的那个 shell”（比 `$SHELL` 可靠，自定义 zsh 也认得对）；
+2. zsh：优先环境变量 `ZDOTDIR`；没有就用 `zsh -c` 问一次 zsh 自己——只写在 `~/.zshenv`
+   里、没 export 的 `ZDOTDIR` 也能拿到；fish 同理探测 `__fish_config_dir`；
+3. 都没有才落到默认路径（bash=`~/.bashrc`，zsh=`${ZDOTDIR:-~}/.zshrc`，
+   fish=`~/.config/fish/config.fish`）。
+
+`uclash shell status` 会显示“检测到哪个 shell、写到哪个文件、依据哪条规则”；
+任何情况下都可以 `uclash shell install --rc <你的配置文件>` 手工指定。
+
+**`uclash init` 会改我的 rc 吗？**
+v0.2 起默认不改。需要包装函数时用 `uclash shell install`，或 `uclash init --shell-integration`。
 
 **新增的订阅什么时候被内核校验？**
 只有被切换为 active（`uclash sub use`）或下次 `uclash start` 时才会真正加载到 mihomo。

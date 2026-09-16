@@ -37,3 +37,29 @@ func ExportOff(port int) string {
 	}
 	return b.String()
 }
+
+// FishOn renders fish-compatible enable statements.
+func FishOn(port int) string {
+	u := ProxyURL(port)
+	var b strings.Builder
+	for _, k := range proxyVars {
+		fmt.Fprintf(&b, "set -gx %s %q\n", k, u)
+	}
+	for _, k := range []string{"no_proxy", "NO_PROXY"} {
+		fmt.Fprintf(&b, "set -gx %s %q\n", k, NoProxy)
+	}
+	return b.String()
+}
+
+// FishOff renders fish-compatible disable statements (only our own values).
+func FishOff(port int) string {
+	u := ProxyURL(port)
+	var b strings.Builder
+	for _, k := range proxyVars {
+		fmt.Fprintf(&b, "if test \"$%s\" = %q; set -e %s; end\n", k, u, k)
+	}
+	for _, k := range []string{"no_proxy", "NO_PROXY"} {
+		fmt.Fprintf(&b, "if test \"$%s\" = %q; set -e %s; end\n", k, NoProxy, k)
+	}
+	return b.String()
+}
