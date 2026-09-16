@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"gitee.com/IKEJAY-code/uclash/internal/convert"
@@ -245,14 +246,32 @@ func (a *App) SetActive(ctx context.Context, name string) error {
 	return nil
 }
 
+// subscriptionUserAgent is what proxies see when we fetch a subscription.
+// Airports gate node protocols on it (e.g. AnyTLS nodes are only served to
+// clients that report a recent mihomo version), so it must reflect the core
+// we actually run rather than a hardcoded old version.
+func (a *App) subscriptionUserAgent() string {
+	if ua := strings.TrimSpace(a.Cfg.UserAgent); ua != "" {
+		return ua
+	}
+	if v := core.NormalizeVersion(a.Cfg.Core.Version); v != "" {
+		return "mihomo/" + v
+	}
+	if v := core.BinaryVersion(a.CorePath()); v != "" {
+		return "mihomo/" + v
+	}
+	return "mihomo"
+}
+
 func (a *App) DownloadOptions(github bool) download.Options {
-	ua := a.Cfg.UserAgent
-	if ua == "" {
-		if github {
+	ua := ""
+	if github {
+		ua = a.Cfg.UserAgent
+		if ua == "" {
 			ua = "uclash/" + version.Version
-		} else {
-			ua = "mihomo/1.19.0"
 		}
+	} else {
+		ua = a.subscriptionUserAgent()
 	}
 	opts := download.Options{UserAgent: ua}
 	if github {

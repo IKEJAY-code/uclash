@@ -182,6 +182,12 @@ uclash node ls && uclash node use <名字>
 或浏览器下载二进制后用 `UCLASH_LOCAL_FILE=... sh install.sh`。
 `uclash init` 下载内核/面板同理：`uclash init --mirror https://gh-proxy.com`。
 
+**面板里出现“当前版本不支持 AnyTLS / 客户端版本过旧”这类节点？**
+那是机场塞进订阅里的占位节点：机场按请求订阅时的 User-Agent 判断客户端能力，UA 版本太旧
+就不下发新协议节点。uclash 默认发送 `mihomo/<你已安装的内核版本>`（如 `mihomo/1.19.31`），
+遇到这种情况先 `uclash core update` 再 `uclash sub update --all` 重新拉取即可；个别机场
+要求特定 UA 时，在 `~/.config/uclash/config.yaml` 设置 `user-agent` 后再更新订阅。
+
 **`uclash proxy` 为什么还要 `eval`？**
 子进程无法修改父 shell 的环境变量（Unix 进程模型），所以 `uclash proxy on` 只负责打印语句、
 由你的 shell 执行一次。不想每次敲 eval 就装一次包装函数：`uclash shell install`——它只在

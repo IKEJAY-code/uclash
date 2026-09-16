@@ -33,6 +33,7 @@ B=$(mktemp -d /tmp/uclash-b.XXXXXX)
 HTTP_PID=""
 HTTP2_PID=""
 SLEEP_PID=""
+UA_PID=""
 A_RUN() { UCLASH_HOME="$A/home" UCLASH_CONFIG_DIR="$A/config" "$BIN" "$@"; }
 B_RUN() { UCLASH_HOME="$B/home" UCLASH_CONFIG_DIR="$B/config" "$BIN" "$@"; }
 
@@ -40,6 +41,7 @@ cleanup() {
   [ -n "$HTTP_PID" ] && kill "$HTTP_PID" 2>/dev/null
   [ -n "$HTTP2_PID" ] && kill "$HTTP2_PID" 2>/dev/null
   [ -n "$SLEEP_PID" ] && kill "$SLEEP_PID" 2>/dev/null
+  [ -n "$UA_PID" ] && kill "$UA_PID" 2>/dev/null
   A_RUN stop --quiet >/dev/null 2>&1
   B_RUN stop --quiet >/dev/null 2>&1
   rm -rf "$A" "$B"
@@ -99,6 +101,43 @@ check "escaped profile stored"               profile_list escaped
 check "local file gets a profile-import hint" sub_add_local_hint
 ncheck "scheme-less argument is rejected"    A_RUN sub add example.com/sub
 A_RUN sub rm escaped >/dev/null 2>&1
+
+section "2c. subscription User-Agent reflects the core version"
+UA_LOG="$A/ua.log"
+cat > "$A/ua_server.py" <<'PY'
+import http.server
+import pathlib
+import sys
+
+fixture = pathlib.Path(sys.argv[1])
+log = pathlib.Path(sys.argv[2])
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        log.write_text(self.headers.get("User-Agent", ""))
+        data = fixture.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/yaml")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, *args):
+        pass
+
+
+http.server.HTTPServer(("127.0.0.1", int(sys.argv[3])), Handler).serve_forever()
+PY
+python3 "$A/ua_server.py" "$FIXTURE" "$UA_LOG" 18083 &
+UA_PID=$!
+sleep 1
+ua_matches() { grep -qE '^mihomo/1\.' "$UA_LOG"; }
+check "sub add succeeds against the UA logger" A_RUN sub add "http://127.0.0.1:18083/fixture-sub.yaml" --name uacheck
+check "User-Agent is mihomo/<core version>"   ua_matches
+A_RUN sub rm uacheck >/dev/null 2>&1
+kill "$UA_PID" 2>/dev/null
+UA_PID=""
 
 section "3. start / API / dashboard"
 start_out=$(A_RUN start)
