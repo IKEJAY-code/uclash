@@ -63,11 +63,21 @@ func newNodeLsCmd() *cobra.Command {
 			sort.Strings(names)
 			fmt.Fprintln(out, "selectable groups:")
 			w := tabwriter.NewWriter(out, 2, 4, 2, ' ', 0)
+			timedOut := false
 			for _, n := range names {
 				p := ps.Proxies[n]
-				fmt.Fprintf(w, "  %s\t%d nodes\tcurrent: %s\n", n, len(p.All), orDash(p.Now))
+				current, dead := currentStatus(ps, p.Now)
+				if dead {
+					timedOut = true
+				}
+				fmt.Fprintf(w, "  %s\t%d nodes\tcurrent: %s\n", n, len(p.All), current)
 			}
 			w.Flush()
+			if timedOut {
+				fmt.Fprintln(out)
+				fmt.Fprintln(out, "hint: a current selection timed out; run `uclash node test <group>` and")
+				fmt.Fprintln(out, "      switch with `uclash node use <group> <node>` (or pick 自动选择/AUTO).")
+			}
 			fmt.Fprintln(out)
 			fmt.Fprintln(out, "details: uclash node ls <group>       switch: uclash node use [group] <name|index>")
 			fmt.Fprintln(out, "latency: uclash node test [group]")
@@ -93,7 +103,14 @@ func printGroupNodes(out io.Writer, name string, g *mihomoapi.Proxy, ps *mihomoa
 
 func delayString(ps *mihomoapi.Proxies, name string) string {
 	p, ok := ps.Proxies[name]
-	if !ok || len(p.History) == 0 {
+	if !ok {
+		return ""
+	}
+	switch p.Type {
+	case "Direct", "Reject", "RejectDrop", "Pass", "PassRule", "Compatible":
+		return ""
+	}
+	if len(p.History) == 0 {
 		return ""
 	}
 	d := p.History[0].Delay
@@ -101,6 +118,39 @@ func delayString(ps *mihomoapi.Proxies, name string) string {
 		return "timeout"
 	}
 	return fmt.Sprintf("%d ms", d)
+}
+
+// currentStatus resolves a group's current selection (select groups can point
+// at other groups) and reports its latency, flagging timeouts so a dead
+// selection is visible in `uclash node ls`.
+func currentStatus(ps *mihomoapi.Proxies, now string) (string, bool) {
+	if now == "" {
+		return "-", false
+	}
+	name := now
+	for depth := 0; depth <= 3; depth++ {
+		p, ok := ps.Proxies[name]
+		if !ok {
+			break
+		}
+		switch p.Type {
+		case "Selector", "URLTest", "Fallback", "Relay", "LoadBalance":
+			if p.Now != "" && p.Now != name {
+				name = p.Now
+				continue
+			}
+			return now, false
+		}
+		switch d := delayString(ps, name); d {
+		case "":
+			return now, false
+		case "timeout":
+			return now + " (timeout)", true
+		default:
+			return now + " (" + d + ")", false
+		}
+	}
+	return now, false
 }
 
 func newNodeUseCmd() *cobra.Command {
