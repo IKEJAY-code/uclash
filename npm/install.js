@@ -7,7 +7,6 @@
 // against the SHA-256 table below, with GitHub mirror fallback.
 //
 // Overrides:
-//   UCLASH_HOST        github | gitee              (default: github)
 //   UCLASH_REPO        owner/repo                  (default: IKEJAY-code/uclash)
 //   UCLASH_VERSION     release tag (default: v<package version>)
 //   UCLASH_SHA256      override the expected checksum (required for
@@ -23,7 +22,6 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const HOST = process.env.UCLASH_HOST || "github";
 const REPO = process.env.UCLASH_REPO || "IKEJAY-code/uclash";
 const DEFAULT_MIRRORS = ["https://gh-proxy.com", "https://ghfast.top", "https://ghproxy.net"];
 const MIRRORS = (process.env.UCLASH_GH_MIRROR ? process.env.UCLASH_GH_MIRROR.split(/\s+/) : [])
@@ -122,17 +120,7 @@ async function download(url, dest) {
 
 async function resolveURL(asset, version) {
   if (process.env.UCLASH_ASSET_URL) return process.env.UCLASH_ASSET_URL;
-  if (HOST === "github") {
-    return `https://github.com/${REPO}/releases/download/${version}/${asset}`;
-  }
-  if (HOST !== "gitee") {
-    throw new Error(`unknown UCLASH_HOST=${HOST} (want github or gitee)`);
-  }
-  const json = await request(`https://gitee.com/api/v5/repos/${REPO}/releases/latest`);
-  const release = JSON.parse(json);
-  const found = (release.assets || []).find((a) => a.name === asset);
-  if (!found) throw new Error(`asset ${asset} not found in the latest Gitee release`);
-  return found.browser_download_url;
+  return `https://github.com/${REPO}/releases/download/${version}/${asset}`;
 }
 
 function sha256(file) {

@@ -10,7 +10,6 @@
 # (gh-proxy.com, ghfast.top, ghproxy.net) when GitHub is unreachable.
 #
 # Environment overrides:
-#   UCLASH_HOST          github | gitee             (default: github)
 #   UCLASH_REPO          owner/repo                (default: IKEJAY-code/uclash)
 #   UCLASH_BIN_DIR       install dir               (default: ~/.local/bin)
 #   UCLASH_VERSION       release tag or "latest"   (default: latest)
@@ -19,7 +18,6 @@
 #   UCLASH_LOCAL_FILE    install from a local file (skips downloading)
 set -eu
 
-HOST=${UCLASH_HOST:-github}
 REPO=${UCLASH_REPO:-IKEJAY-code/uclash}
 VERSION=${UCLASH_VERSION:-latest}
 BIN_DIR=${UCLASH_BIN_DIR:-$HOME/.local/bin}
@@ -40,17 +38,6 @@ case "$arch" in
 esac
 
 ASSET="uclash-$os-$arch"
-
-get_text() {
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$1"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -qO- "$1"
-  else
-    echo "uclash: need curl or wget" >&2
-    return 1
-  fi
-}
 
 get_file() {
   if command -v curl >/dev/null 2>&1; then
@@ -92,44 +79,16 @@ download() {
   return 1
 }
 
-gitee_latest_asset_url() {
-  json=$(get_text "https://gitee.com/api/v5/repos/$REPO/releases/latest") || return 1
-  printf '%s' "$json" |
-    tr ',' '\n' |
-    sed -n 's/.*"browser_download_url":"\([^"]*\)".*/\1/p' |
-    grep "/$ASSET\$" |
-    head -n 1
-}
-
 resolve_url() {
   if [ -n "${UCLASH_DOWNLOAD_URL:-}" ]; then
     printf '%s\n' "$UCLASH_DOWNLOAD_URL"
     return 0
   fi
-  case "$HOST" in
-    github)
-      if [ "$VERSION" = "latest" ]; then
-        printf 'https://github.com/%s/releases/latest/download/%s\n' "$REPO" "$ASSET"
-      else
-        printf 'https://github.com/%s/releases/download/%s/%s\n' "$REPO" "$VERSION" "$ASSET"
-      fi
-      ;;
-    gitee)
-      if [ "$VERSION" = "latest" ]; then
-        if url=$(gitee_latest_asset_url) && [ -n "$url" ]; then
-          printf '%s\n' "$url"
-        else
-          printf 'https://gitee.com/%s/releases/download/%s/%s\n' "$REPO" "$VERSION" "$ASSET"
-        fi
-      else
-        printf 'https://gitee.com/%s/releases/download/%s/%s\n' "$REPO" "$VERSION" "$ASSET"
-      fi
-      ;;
-    *)
-      echo "uclash: unknown UCLASH_HOST=$HOST (want github or gitee)" >&2
-      return 1
-      ;;
-  esac
+  if [ "$VERSION" = "latest" ]; then
+    printf 'https://github.com/%s/releases/latest/download/%s\n' "$REPO" "$ASSET"
+  else
+    printf 'https://github.com/%s/releases/download/%s/%s\n' "$REPO" "$VERSION" "$ASSET"
+  fi
 }
 
 mkdir -p "$BIN_DIR"
