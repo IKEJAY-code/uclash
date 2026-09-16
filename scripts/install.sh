@@ -1,26 +1,30 @@
 #!/bin/sh
-# uclash installer - npm-style, per-user, no sudo.
+# uclash installer — npm-style, per-user, no sudo.
 #
-# Gitee (default):
-#   curl -fsSL https://gitee.com/IKEJAY-code/uclash/raw/main/scripts/install.sh | sh
-# GitHub mirror:
-#   UCLASH_HOST=github sh install.sh
+# GitHub (primary):
+#   curl -fsSL https://raw.githubusercontent.com/IKEJAY-code/uclash/main/scripts/install.sh | sh
+# Behind CN networks (mirror in front of the raw URL):
+#   curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/IKEJAY-code/uclash/main/scripts/install.sh | sh
+#
+# The binary download itself automatically falls back through mirror prefixes
+# (gh-proxy.com, ghfast.top, ghproxy.net) when GitHub is unreachable.
 #
 # Environment overrides:
-#   UCLASH_HOST          gitee | github            (default: gitee)
+#   UCLASH_HOST          github | gitee             (default: github)
 #   UCLASH_REPO          owner/repo                (default: IKEJAY-code/uclash)
 #   UCLASH_BIN_DIR       install dir               (default: ~/.local/bin)
 #   UCLASH_VERSION       release tag or "latest"   (default: latest)
-#   UCLASH_GH_MIRROR     GitHub acceleration prefix (UCLASH_HOST=github only)
+#   UCLASH_GH_MIRROR     space-separated mirror prefixes, tried before the defaults
 #   UCLASH_DOWNLOAD_URL  full URL of the binary    (skips host resolution)
 #   UCLASH_LOCAL_FILE    install from a local file (skips downloading)
 set -eu
 
-HOST=${UCLASH_HOST:-gitee}
+HOST=${UCLASH_HOST:-github}
 REPO=${UCLASH_REPO:-IKEJAY-code/uclash}
 VERSION=${UCLASH_VERSION:-latest}
-MIRROR=${UCLASH_GH_MIRROR:-}
 BIN_DIR=${UCLASH_BIN_DIR:-$HOME/.local/bin}
+
+DEFAULT_MIRRORS='https://gh-proxy.com https://ghfast.top https://ghproxy.net'
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$os" in
@@ -59,6 +63,35 @@ get_file() {
   fi
 }
 
+mirror_list() {
+  if [ -n "${UCLASH_GH_MIRROR:-}" ]; then
+    printf '%s\n' "$UCLASH_GH_MIRROR"
+  fi
+  printf '%s\n' "$DEFAULT_MIRRORS"
+}
+
+# download attempts the URL directly, then through GitHub mirrors when the
+# target is a GitHub URL.
+download() {
+  url=$1
+  dest=$2
+  if get_file "$url" "$dest"; then
+    return 0
+  fi
+  case "$url" in
+    https://github.com/* | https://raw.githubusercontent.com/* | https://api.github.com/*) ;;
+    *) return 1 ;;
+  esac
+  for mirror in $(mirror_list); do
+    [ -n "$mirror" ] || continue
+    echo "uclash: retrying via ${mirror%/}" >&2
+    if get_file "${mirror%/}/$url" "$dest"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 gitee_latest_asset_url() {
   json=$(get_text "https://gitee.com/api/v5/repos/$REPO/releases/latest") || return 1
   printf '%s' "$json" |
@@ -93,7 +126,7 @@ resolve_url() {
       fi
       ;;
     *)
-      echo "uclash: unknown UCLASH_HOST=$HOST (want gitee or github)" >&2
+      echo "uclash: unknown UCLASH_HOST=$HOST (want github or gitee)" >&2
       return 1
       ;;
   esac
@@ -108,30 +141,27 @@ if [ -n "${UCLASH_LOCAL_FILE:-}" ]; then
   cp "$UCLASH_LOCAL_FILE" "$tmp"
 else
   url=$(resolve_url)
-  if [ -n "$MIRROR" ] && [ "$HOST" = "github" ]; then
-    url="${MIRROR%/}/$url"
-  fi
   echo "uclash: downloading $url"
-  if ! get_file "$url" "$tmp"; then
+  if ! download "$url" "$tmp"; then
     cat >&2 <<EOF
 uclash: download failed.
 
 Common causes and fixes:
-  * Gitee sometimes blocks scripted downloads (captcha/login).
-    Download the asset in a browser and rerun with:
-      UCLASH_LOCAL_FILE=/path/to/$ASSET sh install.sh
+  * GitHub is unreachable from this machine. Mirrors were already tried
+    (${DEFAULT_MIRRORS}). Try one explicitly:
+      UCLASH_GH_MIRROR=https://your.mirror sh install.sh
   * Pin a version instead of "latest":
       UCLASH_VERSION=v0.1.0 sh install.sh
-  * Use the GitHub mirror instead:
-      UCLASH_HOST=github UCLASH_GH_MIRROR=https://gh-proxy.com sh install.sh
-  * Or point at a direct URL:
+  * Install from a local file downloaded in a browser:
+      UCLASH_LOCAL_FILE=/path/to/$ASSET sh install.sh
+  * Or point at a direct URL (internal mirror):
       UCLASH_DOWNLOAD_URL=<url> sh install.sh
 EOF
     exit 1
   fi
   head -c 1 "$tmp" 2>/dev/null | grep -q '<' && {
-    echo "uclash: downloaded an HTML page instead of the binary (captcha/login wall?)" >&2
-    echo "uclash: see the fallbacks above (UCLASH_LOCAL_FILE / UCLASH_DOWNLOAD_URL / UCLASH_HOST=github)" >&2
+    echo "uclash: downloaded an HTML page instead of the binary" >&2
+    echo "uclash: see the fallbacks above (UCLASH_LOCAL_FILE / UCLASH_DOWNLOAD_URL / mirrors)" >&2
     exit 1
   }
 fi
@@ -154,5 +184,5 @@ echo "  uclash init                 # fetch core + dashboard, pick ports"
 echo "  uclash sub add <url>        # add your Clash/Mihomo subscription (base64 node links welcome)"
 echo "  uclash start && proxyon     # start the core and proxy this shell"
 echo
-echo "behind GitHub access problems? use a mirror:"
-echo "  UCLASH_GH_MIRROR=https://gh-proxy.com uclash init"
+echo "core/dashboard downloads can also use a mirror:"
+echo "  uclash init --mirror https://gh-proxy.com"

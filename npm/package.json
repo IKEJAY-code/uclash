@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "Per-user, sudo-free mihomo (Clash.Meta) proxy manager",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IKEJAY-code/uclash.git"
+  },
+  "homepage": "https://github.com/IKEJAY-code/uclash",
   "bin": {
     "uclash": "bin/uclash"
   },

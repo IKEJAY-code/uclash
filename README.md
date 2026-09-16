@@ -7,7 +7,10 @@
 特别适合多人共用的服务器 / 集群 / 容器 / WSL 环境。
 
 ```
-~$ curl -fsSL https://gitee.com/IKEJAY-code/uclash/raw/main/scripts/install.sh | sh
+# 主源（GitHub）
+~$ curl -fsSL https://raw.githubusercontent.com/IKEJAY-code/uclash/main/scripts/install.sh | sh
+# 国内网络（镜像）
+~$ curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/IKEJAY-code/uclash/main/scripts/install.sh | sh
 ~$ uclash init
 ~$ uclash sub add "https://your-airport.example/sub?token=..."   # Clash YAML 或 base64 节点链接均可
 ~$ uclash start && proxyon
@@ -16,7 +19,7 @@
 
 ## 特性
 
-- **用户态一键安装**：单个静态二进制，装进 `~/.local/bin`（类 npm 前缀），Gitee 官方源 + GitHub 镜像可选
+- **用户态一键安装**：单个静态二进制，装进 `~/.local/bin`（类 npm 前缀），GitHub 官方源 + 国内加速镜像自动回退
 - **无系统依赖**：`setsid` 自管守护进程 + PID 文件 + flock，WSL、Docker、无 systemd 的 HPC 都能用
 - **多用户安全**：
   - 所有文件都在 `$HOME` 下；端口启动时探测空闲值，被别人占用会自动重选
@@ -34,33 +37,47 @@
 
 ## 安装
 
-### 方式一：curl | sh（推荐，Gitee）
+### 方式一：curl | sh（推荐）
 
 ```sh
-curl -fsSL https://gitee.com/IKEJAY-code/uclash/raw/main/scripts/install.sh | sh
+# 主源（GitHub）
+curl -fsSL https://raw.githubusercontent.com/IKEJAY-code/uclash/main/scripts/install.sh | sh
+
+# 国内网络：给 raw 链接加镜像前缀
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/IKEJAY-code/uclash/main/scripts/install.sh | sh
 ```
 
-装到 `~/.local/bin/uclash`。如果 Gitee 对脚本下载弹验证码或要求登录：
+装到 `~/.local/bin/uclash`。**二进制下载本身也会自动回退**：GitHub 直连失败时
+依次尝试 `gh-proxy.com`、`ghfast.top`、`ghproxy.net`；可用 `UCLASH_GH_MIRROR`
+指定自有镜像（空格分隔多个前缀）。
+
+完全离线或走内网镜像时：
 
 ```sh
-# 浏览器手动下载 uclash-linux-amd64 后本地安装
+# 浏览器下载 uclash-linux-amd64 后本地安装
 UCLASH_LOCAL_FILE=./uclash-linux-amd64 sh install.sh
-# 或换 GitHub 源 + 加速镜像
-UCLASH_HOST=github UCLASH_GH_MIRROR=https://gh-proxy.com sh install.sh
+# 指向内网静态镜像
+UCLASH_DOWNLOAD_URL=https://your.mirror/v0.1.0/uclash-linux-amd64 sh install.sh
 ```
 
 ### 方式二：npm（可选，服务器需要 Node）
 
 ```sh
-npm i -g uclash        # postinstall 按平台从 Gitee Release 下载（支持 UCLASH_HOST=github）
+npm i -g uclash   # 下载与本包同版本的二进制并校验 SHA-256（支持 UCLASH_GH_MIRROR）
 ```
+
+发布到 npm 后会自动同步到 npmmirror（淘宝源），国内 CDN 直连。
 
 ### 方式三：源码构建
 
 ```sh
-git clone https://gitee.com/IKEJAY-code/uclash && cd uclash
+git clone https://github.com/IKEJAY-code/uclash && cd uclash
 make linux            # 产出 dist/uclash-linux-amd64、dist/uclash-linux-arm64
 ```
+
+> Gitee 镜像因平台内容审查（raw 文件返回 HTTP 451）已不可用，主源为 GitHub。
+> 实验室内网可自建静态镜像，通过 `UCLASH_DOWNLOAD_URL`、`uclash init --core/--ui`
+> 与 lab-scripts 工具的 `--base-url` 复用同一批二进制（SHA-256 不变）。
 
 ## 快速开始
 
@@ -150,6 +167,12 @@ uclash node ls && uclash node use <名字>
 把完整报错贴出来。uclash 会尽力识别 YAML / base64 / 纯链接；如果是个别畸形链接，
 转换时会跳过并继续，只要求至少一个节点可用。
 
+**GitHub 下载失败/太慢？**
+`install.sh` 会自动按内置镜像列表重试；仍失败时用
+`UCLASH_GH_MIRROR=https://gh-proxy.com sh install.sh` 指定镜像，
+或浏览器下载二进制后用 `UCLASH_LOCAL_FILE=... sh install.sh`。
+`uclash init` 下载内核/面板同理：`uclash init --mirror https://gh-proxy.com`。
+
 **新增的订阅什么时候被内核校验？**
 只有被切换为 active（`uclash sub use`）或下次 `uclash start` 时才会真正加载到 mihomo。
 如果内核拒绝该配置，uclash 会回滚运行时配置与 active 选择并报错，坏配置不会让服务起不来；
@@ -174,7 +197,10 @@ uclash node ls && uclash node use <名字>
 go test ./...                       # 单元测试（含订阅转换的协议用例）
 make linux                          # 交叉编译 linux amd64/arm64
 scripts/release.sh v0.1.0           # 产出全部 4 个平台资产 + SHA256SUMS
-GITEE_TOKEN=xxx scripts/release.sh v0.1.0 --publish   # 发布到 Gitee Release
+git tag v0.1.0 && git push origin v0.1.0   # 推送 tag，Actions 自动发布 Release
+# 本地直接发布（需 gh CLI 已登录）：
+# scripts/release.sh v0.1.0 --publish        （重建并发布）
+# scripts/release.sh v0.1.0 --no-build --publish （发布 dist/ 中的现有文件）
 scripts/wsl-run.sh                  # 仅在 Windows 开发时：拷入 WSL 跑集成测试
 ```
 

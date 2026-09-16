@@ -2,24 +2,47 @@
 // Downloads the uclash binary for the current platform.
 // Invoked automatically as an npm postinstall hook; can also be run directly.
 //
+// The binary version defaults to this package's own version, so a pinned
+// install never silently tracks a moving target. Downloads are verified
+// against the SHA-256 table below, with GitHub mirror fallback.
+//
 // Overrides:
-//   UCLASH_HOST        gitee | github             (default: gitee)
-//   UCLASH_REPO        owner/repo                 (default: IKEJAY-code/uclash)
-//   UCLASH_VERSION     release tag or "latest"
-//   UCLASH_GH_MIRROR   GitHub acceleration prefix (UCLASH_HOST=github only)
-//   UCLASH_ASSET_URL   full URL to the binary     (skips host resolution)
+//   UCLASH_HOST        github | gitee              (default: github)
+//   UCLASH_REPO        owner/repo                  (default: IKEJAY-code/uclash)
+//   UCLASH_VERSION     release tag (default: v<package version>)
+//   UCLASH_SHA256      override the expected checksum (required for
+//                      versions not in the table below)
+//   UCLASH_GH_MIRROR   space-separated mirror prefixes, tried before defaults
+//   UCLASH_ASSET_URL   full URL of the binary      (skips host resolution)
 //   UCLASH_LOCAL_FILE  install from a local file
 //   UCLASH_FORCE=1     re-download even if the binary exists
 "use strict";
 
+const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const HOST = process.env.UCLASH_HOST || "gitee";
+const HOST = process.env.UCLASH_HOST || "github";
 const REPO = process.env.UCLASH_REPO || "IKEJAY-code/uclash";
-const VERSION = process.env.UCLASH_VERSION || "latest";
-const MIRROR = process.env.UCLASH_GH_MIRROR || "";
+const DEFAULT_MIRRORS = ["https://gh-proxy.com", "https://ghfast.top", "https://ghproxy.net"];
+const MIRRORS = (process.env.UCLASH_GH_MIRROR ? process.env.UCLASH_GH_MIRROR.split(/\s+/) : [])
+  .filter(Boolean)
+  .concat(DEFAULT_MIRRORS);
+
+// SHA-256 of the official release binaries, keyed by version and platform.
+const SHA256 = {
+  "v0.1.0": {
+    "linux-amd64": "24601b40784cdfd9128f9442f4ea6e63de2a5e51c1603bddb3254eb55dbbbbdb",
+    "linux-arm64": "58912b29868c27438f5961e687825dba2341be007cb4e8ca5c2136d21aa7e0ff",
+    "darwin-amd64": "3a7c64c03298f5aa5b2027564c8ebb565fdb7b0b42e05992df8ec7922d177eea",
+    "darwin-arm64": "e79183f6af4a2591be6e05bffad7a901a329b64693363d88b55a886679fb41a3",
+  },
+};
+
+function packageVersion() {
+  return require("./package.json").version;
+}
 
 function platform() {
   const p = os.platform();
@@ -28,7 +51,7 @@ function platform() {
   }
   const arch = os.arch() === "x64" ? "amd64" : os.arch() === "arm64" ? "arm64" : null;
   if (!arch) throw new Error(`unsupported architecture: ${os.arch()}`);
-  return { p, arch };
+  return { p, arch, key: `${p}-${arch}` };
 }
 
 function request(url, { sink } = {}) {
@@ -73,20 +96,36 @@ function request(url, { sink } = {}) {
   });
 }
 
-async function resolveURL(asset) {
+function isGitHubURL(url) {
+  return /^https:\/\/(github\.com|raw\.githubusercontent\.com|api\.github\.com)\//.test(url);
+}
+
+// download tries the URL directly, then through mirror prefixes for GitHub URLs.
+async function download(url, dest) {
+  try {
+    return await request(url, { sink: dest });
+  } catch (err) {
+    if (!isGitHubURL(url)) throw err;
+    for (const mirror of MIRRORS) {
+      const proxied = `${mirror.replace(/\/+$/, "")}/${url}`;
+      try {
+        console.log(`uclash: retrying via ${mirror}`);
+        return await request(proxied, { sink: dest });
+      } catch (_) {
+        // try the next mirror
+      }
+    }
+    throw err;
+  }
+}
+
+async function resolveURL(asset, version) {
   if (process.env.UCLASH_ASSET_URL) return process.env.UCLASH_ASSET_URL;
   if (HOST === "github") {
-    const base =
-      VERSION === "latest"
-        ? `https://github.com/${REPO}/releases/latest/download/${asset}`
-        : `https://github.com/${REPO}/releases/download/${VERSION}/${asset}`;
-    return MIRROR ? `${MIRROR.replace(/\/+$/, "")}/${base}` : base;
+    return `https://github.com/${REPO}/releases/download/${version}/${asset}`;
   }
   if (HOST !== "gitee") {
-    throw new Error(`unknown UCLASH_HOST=${HOST} (want gitee or github)`);
-  }
-  if (VERSION !== "latest") {
-    return `https://gitee.com/${REPO}/releases/download/${VERSION}/${asset}`;
+    throw new Error(`unknown UCLASH_HOST=${HOST} (want github or gitee)`);
   }
   const json = await request(`https://gitee.com/api/v5/repos/${REPO}/releases/latest`);
   const release = JSON.parse(json);
@@ -95,30 +134,51 @@ async function resolveURL(asset) {
   return found.browser_download_url;
 }
 
+function sha256(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
 (async () => {
-  const { p, arch } = platform();
-  const asset = `uclash-${p}-${arch}`;
+  const { key } = platform();
+  const asset = `uclash-${key}`;
+  const version = process.env.UCLASH_VERSION || `v${packageVersion()}`;
+  const expected = (process.env.UCLASH_SHA256 || SHA256[version]?.[key] || "").toLowerCase();
+  if (!expected) {
+    throw new Error(
+      `no pinned SHA-256 for ${version}/${key}; set UCLASH_SHA256=<hex> to install explicitly`
+    );
+  }
+
   const binDir = path.join(__dirname, "bin");
   fs.mkdirSync(binDir, { recursive: true });
   const dest = path.join(binDir, "uclash");
   if (fs.existsSync(dest) && !process.env.UCLASH_FORCE) {
-    console.log(`uclash: ${dest} already present (UCLASH_FORCE=1 to re-download)`);
-    return;
+    if (sha256(dest) === expected) {
+      console.log(`uclash: ${dest} already present`);
+      return;
+    }
   }
   if (process.env.UCLASH_LOCAL_FILE) {
     fs.copyFileSync(process.env.UCLASH_LOCAL_FILE, dest);
     fs.chmodSync(dest, 0o755);
-    console.log(`uclash: installed from ${process.env.UCLASH_LOCAL_FILE} to ${dest}`);
-    return;
+  } else {
+    const url = await resolveURL(asset, version);
+    console.log(`uclash: downloading ${url}`);
+    await download(url, dest);
+    fs.chmodSync(dest, 0o755);
   }
-  const url = await resolveURL(asset);
-  console.log(`uclash: downloading ${url}`);
-  await request(url, { sink: dest });
-  fs.chmodSync(dest, 0o755);
-  console.log(`uclash: installed to ${dest}`);
+  const actual = sha256(dest);
+  if (actual !== expected) {
+    fs.rmSync(dest, { force: true });
+    throw new Error(`SHA-256 mismatch for ${version}/${key}\n  expected: ${expected}\n  actual:   ${actual}`);
+  }
+  console.log(`uclash: installed ${version} (${key}) to ${dest}`);
   console.log("next: uclash init");
 })().catch((err) => {
   console.error(`uclash install failed: ${err.message}`);
-  console.error("hints: UCLASH_VERSION=v0.1.0 | UCLASH_HOST=github | UCLASH_LOCAL_FILE=/path/to/" + "uclash-<os>-<arch>");
+  console.error(
+    "hints: UCLASH_VERSION=<tag> UCLASH_SHA256=<hex> | UCLASH_GH_MIRROR=<prefix> | " +
+      "UCLASH_LOCAL_FILE=/path/to/uclash-<os>-<arch>"
+  );
   process.exit(1);
 });

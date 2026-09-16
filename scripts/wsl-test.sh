@@ -214,13 +214,25 @@ if [ -n "${NPM_DIR:-}" ] && command -v node >/dev/null 2>&1; then
   MACH=$(uname -m)
   case "$MACH" in x86_64) MACH=amd64 ;; aarch64 | arm64) MACH=arm64 ;; esac
   cp "$BIN" "$NPMTMP/uclash-$OS-$MACH"
+  FIXTURE_SHA=$(sha256sum "$BIN" | awk '{print $1}')
   python3 -m http.server 18082 --directory "$NPMTMP" >/dev/null 2>&1 &
   HTTP2_PID=$!
   sleep 1
   UCLASH_ASSET_URL="http://127.0.0.1:18082/uclash-$OS-$MACH" \
+  UCLASH_VERSION=v0.0.0-test UCLASH_SHA256="$FIXTURE_SHA" \
     node "$NPMTMP/pkg/install.js" >/dev/null
   check "npm install.js downloaded the binary" test -x "$NPMTMP/pkg/bin/uclash"
   check "downloaded binary runs"             "$NPMTMP/pkg/bin/uclash" version
+  UCLASH_ASSET_URL="http://127.0.0.1:18082/uclash-$OS-$MACH" \
+  UCLASH_VERSION=v0.0.0-test UCLASH_SHA256="$FIXTURE_SHA" \
+    node "$NPMTMP/pkg/install.js" | grep -q 'already present' \
+    && ok "npm installer is idempotent" || bad "npm installer is idempotent"
+  ncheck "npm installer rejects a bad checksum" env \
+    UCLASH_ASSET_URL="http://127.0.0.1:18082/uclash-$OS-$MACH" \
+    UCLASH_VERSION=v0.0.0-test \
+    UCLASH_SHA256=0000000000000000000000000000000000000000000000000000000000000000 \
+    node "$NPMTMP/pkg/install.js"
+  check "bad checksum removed the download"  test ! -e "$NPMTMP/pkg/bin/uclash"
   kill "$HTTP2_PID" 2>/dev/null
   rm -rf "$NPMTMP"
 else
