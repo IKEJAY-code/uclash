@@ -1,5 +1,5 @@
 #!/bin/sh
-# uclash installer â€?npm-style, per-user, no sudo.
+# uclash installer - npm-style, per-user, no sudo.
 #
 # Gitee (default):
 #   curl -fsSL https://gitee.com/IKEJAY-code/uclash/raw/main/scripts/install.sh | sh

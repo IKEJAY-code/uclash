@@ -1,6 +1,6 @@
 # 第三方组件与许可（Third-Party Notices）
 
-uclash 自身以 **MIT** 许可发布（见 [LICENSE](LICENSE)）。它是一层"用户态进程管理器"：
+uclash 自身以 **MIT** 许可发布（见 [LICENSE](LICENSE)）。它是一层“用户态进程管理器”：
 **不打包、不修改、不分发**任何代理内核、面板或节点数据，所有外部组件都由
 用户在运行时从上游官方渠道自行获取，在此向各上游项目致谢并声明其许可。
 
@@ -13,7 +13,7 @@ uclash 自身以 **MIT** 许可发布（见 [LICENSE](LICENSE)）。它是一层
 | meta-rules-dat GeoIP/GeoSite | 内核运行期自行下载的路由数据（`geox-url`），可选且可替换 | 遵循上游仓库声明 | <https://github.com/MetaCubeX/meta-rules-dat> |
 
 > 关于 GPL：uclash 与 mihomo 之间只通过命令行参数、配置文件与 HTTP API 交互，
-> 属于"独立进程调用"，不构成衍生作品；mihomo 二进制及其 GPL 义务完全由用户
+> 属于“独立进程调用”，不构成衍生作品；mihomo 二进制及其 GPL 义务完全由用户
 > 从上游下载时适用。uclash 的源码与发布产物中不包含 mihomo 代码或二进制。
 
 ## 编译期依赖（Go 模块，静态链接进 uclash 二进制）
@@ -23,7 +23,7 @@ uclash 自身以 **MIT** 许可发布（见 [LICENSE](LICENSE)）。它是一层
 | spf13/cobra | Apache-2.0 | <https://github.com/spf13/cobra> |
 | spf13/pflag | BSD-3-Clause | <https://github.com/spf13/pflag> |
 | inconshreveable/mousetrap | Apache-2.0 | <https://github.com/inconshreveable/mousetrap> |
-| gopkg.in/yaml.v3 | MIT + Apache-2.0 (© Canonical Ltd / Kirill Simonov) | <https://github.com/go-yaml/yaml> |
+| gopkg.in/yaml.v3 | MIT + Apache-2.0（© Canonical Ltd / Kirill Simonov） | <https://github.com/go-yaml/yaml> |
 
 上述模块的许可证全文可在 `go.sum` 所列模块源码中查看。
 

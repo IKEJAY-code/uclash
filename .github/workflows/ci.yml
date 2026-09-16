@@ -16,3 +16,23 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /dev/null ./cmd/uclash
+      - name: Validate UTF-8 in text files
+        run: |
+          python3 - <<'EOF'
+          import pathlib, sys
+          exts = {'.md', '.go', '.sh', '.js', '.json', '.yml', '.yaml', '.txt', ''}
+          bad = []
+          for p in pathlib.Path('.').rglob('*'):
+              if '.git' in p.parts or not p.is_file():
+                  continue
+              if p.suffix not in exts:
+                  continue
+              try:
+                  p.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  bad.append(str(p))
+          if bad:
+              print('invalid UTF-8:', *bad, sep='\n')
+              sys.exit(1)
+          print('all text files are valid UTF-8')
+          EOF
