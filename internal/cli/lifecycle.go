@@ -198,7 +198,7 @@ func startApp(cmd *cobra.Command, a *app.App, quiet bool) error {
 		fmt.Fprintf(out, "started (pid %d)%s\n", pi.PID, version)
 		fmt.Fprintf(out, "ports:  mixed 127.0.0.1:%d | controller 127.0.0.1:%d\n", a.Cfg.Ports.Mixed, a.Cfg.Ports.Controller)
 		fmt.Fprintf(out, "ui:     %s\n", uiurl.Setup(a.Cfg.Ports.Controller, a.Cfg.Secret))
-		fmt.Fprintln(out, "proxy:  eval \"$(uclash env on)\"  or use the proxyon shell helper")
+		fmt.Fprintln(out, `proxy:  eval "$(uclash proxy on)"   (any shell; "uclash shell install" to drop the eval)`)
 	}
 	return nil
 }

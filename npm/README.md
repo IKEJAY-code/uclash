@@ -21,7 +21,7 @@ postinstall 行为：
 ```bash
 uclash init
 uclash sub add "<订阅链接>"
-uclash start && proxyon
+eval "$(uclash proxy on)"
 uclash ui
 ```
 

@@ -111,7 +111,7 @@ func newDoctorCmd() *cobra.Command {
 				rc = shellenv.DetectRC()
 			}
 			if rc != "" && shellenv.Installed(rc) {
-				add("ok", "shell", "proxyon/proxyoff installed in %s", rc)
+				add("ok", "shell", "uclash wrapper installed in %s", rc)
 			} else {
 				add("warn", "shell", "helpers not installed (run `uclash shell install`)")
 			}

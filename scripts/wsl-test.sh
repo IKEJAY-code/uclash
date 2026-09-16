@@ -101,7 +101,9 @@ ncheck "scheme-less argument is rejected"    A_RUN sub add example.com/sub
 A_RUN sub rm escaped >/dev/null 2>&1
 
 section "3. start / API / dashboard"
-A_RUN start >/dev/null
+start_out=$(A_RUN start)
+start_advertises_proxy() { grep -q 'uclash proxy on' <<< "$start_out"; }
+check "start output advertises uclash proxy" start_advertises_proxy
 check "status --quiet == running"            status_a running
 check "API /version reachable"               api_has "$A_CTRL" "$A_SECRET" /version version
 check "dashboard served at /ui/"             ui_served "$A_CTRL"

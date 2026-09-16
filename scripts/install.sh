@@ -235,7 +235,7 @@ echo
 echo "next steps:"
 echo "  uclash init                 # fetch core + dashboard, pick ports"
 echo "  uclash sub add <url>        # add your Clash/Mihomo subscription (base64 node links welcome)"
-echo "  uclash start && proxyon     # start the core and proxy this shell"
+echo "  eval \"\$(uclash proxy on)\"   # start the core and proxy this shell (any shell)"
 echo
 echo "core/dashboard downloads can also use a mirror:"
 echo "  uclash init --mirror https://gh-proxy.com"

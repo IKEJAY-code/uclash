@@ -31,7 +31,7 @@ func newInitCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Set up uclash: fetch the mihomo core + dashboard, pick ports, install shell helpers",
+		Short: "Set up uclash: fetch the mihomo core + dashboard, pick ports",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			out := cmd.OutOrStdout()
