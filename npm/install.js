@@ -79,6 +79,12 @@ const SHA256 = {
     "darwin-amd64": "04afc6603e990495e27d633a07ffd994d719e245fa9a79f4eb10437fe69957f0",
     "darwin-arm64": "03d50ba954b025c5e1e38e3cae0d4b8b4014663e4647ab98bae02a69f9b90a10",
   },
+  "v0.2.5": {
+    "linux-amd64": "10cf214c6780f092221495782c7a53d3205c3ad71cea55b63028162eeb3052ef",
+    "linux-arm64": "92776de8eeb40dab7f40ed8f567b7fa03d523e54d614e95d8ce803834a1e4df4",
+    "darwin-amd64": "b36329e06f1f3209ec63e6e175531c496eb8e20edc5e6c1a5d3e8d98f9188278",
+    "darwin-arm64": "bfefe00c52259ce519b9860483aa9413fcb4c10ca2d0c8318a83a898b92072ec",
+  },
 };
 
 function packageVersion() {
